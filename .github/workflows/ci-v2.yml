@@ -1,0 +1,157 @@
+name: CI (v2)
+
+# Checks for the Tauri 2 app under app/. The v1 (Briefcase) workflows in
+# build.yml / release.yml are separate and untouched.
+#
+# Third-party actions are pinned to full commit SHAs (version in the trailing
+# comment); Dependabot (.github/dependabot.yml) keeps the pins current.
+
+on:
+  push:
+    branches: [v2, main]
+    paths:
+      - 'app/**'
+      - 'scripts/**'
+      - '.github/workflows/ci-v2.yml'
+  pull_request:
+    branches: [v2, main]
+    paths:
+      - 'app/**'
+      - 'scripts/**'
+      - '.github/workflows/ci-v2.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: '22' # vitest 5 and jsdom 30 require Node >= 22.12
+  PNPM_VERSION: '10'
+  # System libraries Tauri 2 needs on Ubuntu 22.04 (WebKitGTK 4.1, libsoup 3,
+  # tray icon via ayatana appindicator).
+  TAURI_LINUX_DEPS: >-
+    libwebkit2gtk-4.1-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
+    libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+    build-essential pkg-config patchelf
+
+jobs:
+  test:
+    name: Lint and test (Linux)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          # shellcheck disable=SC2086 # deliberate word splitting into package names
+          sudo apt-get install -y $TAURI_LINUX_DEPS
+
+      # Pinned by SHA, so the toolchain must be named explicitly.
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable branch
+        with:
+          toolchain: stable
+          components: clippy
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: app/src-tauri -> target
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: app
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check frontend
+        working-directory: app
+        run: pnpm exec tsc --noEmit
+
+      - name: Frontend tests
+        working-directory: app
+        run: pnpm test
+
+      # tauri::generate_context! embeds frontendDist (app/dist) at compile
+      # time, so it must exist before any cargo build.
+      - name: Build frontend
+        working-directory: app
+        run: pnpm exec vite build
+
+      - name: Clippy
+        working-directory: app/src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Rust tests
+        working-directory: app/src-tauri
+        run: cargo test
+
+      - name: Broker manifest signing self-test
+        run: node scripts/sign-manifest.mjs --self-test
+
+  chrome-tests:
+    name: Real-Chrome tests (optional)
+    runs-on: ubuntu-22.04
+    # Informational: a failure here does not fail the workflow.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          # shellcheck disable=SC2086 # deliberate word splitting into package names
+          sudo apt-get install -y $TAURI_LINUX_DEPS
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable branch
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: app/src-tauri -> target
+          key: chrome-tests
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: Build frontend
+        working-directory: app
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec vite build
+
+      - uses: browser-actions/setup-chrome@c785b87e244131f27c9f19c1a33e2ead956ab7ce # v1.7.3
+        id: chrome
+        with:
+          chrome-version: stable
+
+      # Only the Chrome suites: other #[ignore] tests need the OS keychain or
+      # live broker pages, which CI does not have.
+      - name: Ignored Chrome tests
+        working-directory: app/src-tauri
+        env:
+          CHROME: ${{ steps.chrome.outputs.chrome-path }}
+        run: cargo test --test chrome_engine --test chrome_runner -- --ignored
