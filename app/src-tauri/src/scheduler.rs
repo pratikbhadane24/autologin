@@ -31,6 +31,10 @@ pub struct Schedule {
     pub retry_failed_after_minutes: Option<u32>,
     /// Scheduled runs hide the browser unless the user turns this off.
     pub headless: bool,
+    /// Phones: open AutoLogin and log in with no tap, instead of showing a
+    /// "tap to log in" notification. Needs extra permissions.
+    #[serde(default)]
+    pub phone_automatic: bool,
 }
 
 impl Default for Schedule {
@@ -42,6 +46,7 @@ impl Default for Schedule {
             tz: chrono_tz::Asia::Kolkata,
             retry_failed_after_minutes: Some(5),
             headless: true,
+            phone_automatic: false,
         }
     }
 }
@@ -56,6 +61,12 @@ impl Schedule {
             .from_local_datetime(&date.and_time(self.time))
             .earliest()
             .map(|local| local.with_timezone(&Utc))
+    }
+
+    /// The next `count` scheduled runs after `now`, earliest first (for phone
+    /// alarms, which must be set ahead of time).
+    pub fn upcoming_runs(&self, now: DateTime<Utc>, count: usize) -> Vec<DateTime<Utc>> {
+        std::iter::successors(self.next_run_after(now), |&last| self.next_run_after(last)).take(count).collect()
     }
 
     /// The next scheduled run strictly after `now`, or `None` when disabled
@@ -101,6 +112,25 @@ mod tests {
 
     fn enabled() -> Schedule {
         Schedule { enabled: true, ..Schedule::default() }
+    }
+
+    #[test]
+    fn upcoming_runs_lists_the_next_scheduled_days_in_order() {
+        // Friday 2026-10-09, after the run time: next are Mon, Tue, Wed.
+        let runs = enabled().upcoming_runs(ist(2026, 10, 9, 10, 0), 3);
+        assert_eq!(runs, vec![ist(2026, 10, 12, 8, 45), ist(2026, 10, 13, 8, 45), ist(2026, 10, 14, 8, 45)]);
+    }
+
+    #[test]
+    fn upcoming_runs_is_empty_when_disabled() {
+        assert!(Schedule::default().upcoming_runs(ist(2026, 10, 9, 10, 0), 3).is_empty());
+    }
+
+    #[test]
+    fn settings_saved_before_phone_mode_still_load() {
+        let old = r#"{"enabled":true,"time":"08:45:00","days":["Mon"],"tz":"Asia/Kolkata","retry_failed_after_minutes":5,"headless":true}"#;
+        let schedule: Schedule = serde_json::from_str(old).unwrap();
+        assert!(!schedule.phone_automatic);
     }
 
     #[test]

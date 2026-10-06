@@ -102,7 +102,12 @@ impl BrowserSession {
         }
         let open = Open { visible: self.visible, intercept: intercept.map(|r| r.as_str().to_string()) };
         call::<IgnoredAny>("open", open).await?;
-        Ok(BrowserPage { slot: Some(slot) })
+        let page = BrowserPage { slot: Some(slot) };
+        // A 0x0 page (screen off, no layout) would make every field "hidden".
+        if let Ok(viewport) = page.eval::<String>("innerWidth + 'x' + innerHeight").await {
+            tracing::debug!(%viewport, "login page opened");
+        }
+        Ok(page)
     }
 
     pub async fn close(self) {}

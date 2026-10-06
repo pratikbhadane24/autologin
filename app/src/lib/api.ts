@@ -14,6 +14,8 @@ import type {
   ImportReport,
   MigrationOutcome,
   PasteResult,
+  PhoneSetting,
+  PhoneStatus,
   Selection,
   SettingsView,
   UpdateStatus,
@@ -63,4 +65,7 @@ export const api = {
   recentLogs: (maxLines: number) => call<string>("recent_logs", { maxLines }),
   openFolder: (folder: Folder) => call<void>("open_folder", { folder }),
   checkForUpdate: () => call<UpdateStatus>("check_for_update"),
+  phoneScheduleStatus: () => call<PhoneStatus>("phone_schedule_status"),
+  openPhoneSetting: (which: PhoneSetting) => call<void>("open_phone_setting", { which }),
+  startRequestedRun: () => call<void>("start_requested_run"),
 };

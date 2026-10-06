@@ -73,6 +73,9 @@ pub fn run() {
             commands::recent_logs,
             commands::open_folder,
             commands::check_for_update,
+            commands::phone_schedule_status,
+            commands::open_phone_setting,
+            commands::start_requested_run,
             commands::show_main_window,
         ])
         .run(tauri::generate_context!())
@@ -95,8 +98,8 @@ fn platform_plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
 }
 
-/// On phones, the native WebView that broker logins run in.
+/// On phones: the WebView broker logins run in, and the daily-login alarms.
 #[cfg(mobile)]
 fn platform_plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
-    builder.plugin(browser::mobile::init())
+    builder.plugin(browser::mobile::init()).plugin(app::phone_schedule::init())
 }

@@ -69,7 +69,19 @@ export interface Schedule {
   tz: string;
   retry_failed_after_minutes: number | null;
   headless: boolean;
+  /** Phones: open and log in with no tap (needs extra permissions). */
+  phone_automatic: boolean;
 }
+
+/** Phones: what automatic daily login still needs. */
+export interface PhoneStatus {
+  notifications: boolean;
+  exact_alarms: boolean;
+  overlay: boolean;
+  battery_unrestricted: boolean;
+}
+
+export type PhoneSetting = "notifications" | "exactAlarms" | "overlay" | "battery";
 
 export interface AppSettings {
   manual_headless: boolean;

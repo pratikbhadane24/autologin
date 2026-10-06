@@ -377,3 +377,42 @@ pub async fn check_for_update(_app: AppHandle) -> CmdResult<()> {
 pub fn show_main_window(app: AppHandle) {
     super::show_main_window(&app);
 }
+
+/// Phones: which permissions automatic daily login still needs.
+#[tauri::command]
+#[cfg(mobile)]
+pub async fn phone_schedule_status() -> CmdResult<super::phone_schedule::PhoneStatus> {
+    super::phone_schedule::status().await.map_err(CommandError::msg)
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+pub async fn phone_schedule_status() -> CmdResult<()> {
+    Err(CommandError::msg("Only used on phones."))
+}
+
+/// Phones: open the system screen for one permission ("notifications",
+/// "exactAlarms", "overlay" or "battery").
+#[tauri::command]
+#[cfg(mobile)]
+pub async fn open_phone_setting(which: String) -> CmdResult<()> {
+    super::phone_schedule::open_setting(&which).await.map_err(CommandError::msg)
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+pub async fn open_phone_setting(which: String) -> CmdResult<()> {
+    let _ = which;
+    Err(CommandError::msg("Only used on phones."))
+}
+
+/// Phones: called when AutoLogin comes to the front, so a run requested by
+/// the daily-login notification starts right away.
+#[tauri::command]
+pub async fn start_requested_run(app: AppHandle) -> CmdResult<()> {
+    #[cfg(mobile)]
+    super::phone_schedule::start_if_requested(&app).await;
+    #[cfg(desktop)]
+    let _ = app;
+    Ok(())
+}

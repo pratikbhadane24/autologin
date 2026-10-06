@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ExportDialog } from "../components/ExportDialog";
 import { ImportDialog } from "../components/ImportDialog";
+import { PhoneScheduleSetup } from "../components/PhoneScheduleSetup";
 import { api } from "../lib/api";
 import { DEVICE, IS_MOBILE } from "../lib/platform";
 import type { AppInfo, AppSettings, CommandError, SettingsView as View, Weekday } from "../lib/types";
@@ -74,7 +75,7 @@ export function SettingsView({ view, info, onSaved, onAccountsChanged, onShowPri
             checked={settings.schedule.enabled}
             onChange={(e) => setSchedule({ enabled: e.target.checked })}
           />
-          Log in all accounts automatically every day
+          Log in all accounts {IS_MOBILE ? "every day" : "automatically every day"}
         </label>
         <div className="schedule-row" aria-disabled={!settings.schedule.enabled}>
           <div className="field">
@@ -109,6 +110,7 @@ export function SettingsView({ view, info, onSaved, onAccountsChanged, onShowPri
             </>
           )}
         </p>
+        {IS_MOBILE && <PhoneScheduleSetup schedule={settings.schedule} onChange={setSchedule} />}
         {view.next_scheduled_run && (
           <p className="muted">Next automatic login: {formatNextRun(view.next_scheduled_run)}.</p>
         )}

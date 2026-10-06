@@ -2,7 +2,6 @@
 //! the end-of-run notification.
 
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_notification::NotificationExt;
 use tokio_util::sync::CancellationToken;
 
 use super::settings;
@@ -113,10 +112,7 @@ fn notify(app: &AppHandle, trigger: Trigger, summary: &RunSummary) {
     if window_focused && trigger == Trigger::Manual {
         return;
     }
-    let body = summary_text(summary);
-    if let Err(error) = app.notification().builder().title("AutoLogin").body(body).show() {
-        tracing::debug!(%error, "notification failed");
-    }
+    super::notify(app, "AutoLogin", &summary_text(summary));
 }
 
 pub fn summary_text(summary: &RunSummary) -> String {

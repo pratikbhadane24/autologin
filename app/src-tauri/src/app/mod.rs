@@ -4,6 +4,8 @@ pub mod commands;
 pub mod deep_link;
 pub mod dev;
 pub mod manifest_service;
+#[cfg(mobile)]
+pub mod phone_schedule;
 pub mod run_control;
 pub mod schedule_service;
 pub mod settings;
@@ -100,7 +102,10 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         });
         update_service::spawn(app.handle().clone());
     }
+    #[cfg(desktop)]
     schedule_service::spawn(app.handle().clone());
+    #[cfg(mobile)]
+    phone_schedule::spawn(app.handle().clone());
     manifest_service::spawn(app.handle().clone());
     if dev.run_all_then_quit {
         let handle = app.handle().clone();
@@ -122,11 +127,23 @@ fn master_key(_data_dir: &std::path::Path) -> Box<dyn crate::store::vault::Maste
     Box::new(KeychainMasterKey)
 }
 
-/// Android: app-private file until the Keystore-backed plugin lands (the app
-/// sandbox keeps it from other apps; backups are disabled in the manifest).
+/// Android: an app-private file holding the key wrapped by the Android
+/// Keystore (backups are also disabled in the manifest).
 #[cfg(target_os = "android")]
 fn master_key(data_dir: &std::path::Path) -> Box<dyn crate::store::vault::MasterKey> {
-    Box::new(crate::store::vault::FileMasterKey::new(data_dir.join("vault.key")))
+    use crate::store::{android_keystore::AndroidKeystore, vault::FileMasterKey};
+    Box::new(FileMasterKey::wrapped(data_dir.join("vault.key"), Box::new(AndroidKeystore)))
+}
+
+/// Show a system notification. Phones need a monochrome status-bar icon.
+pub fn notify(app: &tauri::AppHandle, title: &str, body: &str) {
+    use tauri_plugin_notification::NotificationExt;
+    let builder = app.notification().builder().title(title).body(body);
+    #[cfg(mobile)]
+    let builder = builder.icon("ic_stat_autologin");
+    if let Err(error) = builder.show() {
+        tracing::debug!(%error, "notification failed");
+    }
 }
 
 /// Bring the main window forward (tray, single-instance, app links).

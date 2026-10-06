@@ -54,16 +54,51 @@ impl MasterKey for KeychainMasterKey {
     }
 }
 
-/// The master key in a file only this app can read. Used on Android until a
-/// Keystore-backed implementation replaces it.
-#[derive(Debug)]
+/// Protects the vault key at rest with a key the OS holds and won't export
+/// (the Android Keystore).
+pub trait KeyWrap: Send + Sync {
+    fn wrap(&self, key: &[u8]) -> Result<Vec<u8>, String>;
+    fn unwrap(&self, blob: &[u8]) -> Result<Zeroizing<Vec<u8>>, String>;
+}
+
+/// Marks a key file holding a wrapped key; plain files are bare hex.
+const WRAPPED_PREFIX: &str = "ks1:";
+
+/// The master key in a file only this app can read (Android). With a
+/// [`KeyWrap`], the file holds the key wrapped by the OS keystore, and an
+/// older plain file is wrapped in place the first time it's read.
 pub struct FileMasterKey {
     path: std::path::PathBuf,
+    wrap: Option<Box<dyn KeyWrap>>,
 }
 
 impl FileMasterKey {
     pub fn new(path: std::path::PathBuf) -> Self {
-        Self { path }
+        Self { path, wrap: None }
+    }
+
+    pub fn wrapped(path: std::path::PathBuf, wrap: Box<dyn KeyWrap>) -> Self {
+        Self { path, wrap: Some(wrap) }
+    }
+
+    fn encode(&self, key: &[u8]) -> Result<Zeroizing<String>, SecretError> {
+        let Some(wrap) = &self.wrap else { return Ok(Zeroizing::new(hex::encode(key))) };
+        let blob = wrap.wrap(key).map_err(keystore_error)?;
+        // The file will be the only copy of the key: prove it can be read back.
+        let unwrapped = wrap.unwrap(&blob).map_err(keystore_error)?;
+        if unwrapped.as_slice() != key {
+            return Err(keystore_error("the wrapped key didn't read back".into()));
+        }
+        Ok(Zeroizing::new(format!("{WRAPPED_PREFIX}{}", hex::encode(blob))))
+    }
+
+    fn decode(&self, stored: &str) -> Result<MasterKeyBytes, SecretError> {
+        let Some(wrapped) = stored.trim().strip_prefix(WRAPPED_PREFIX) else {
+            return decode_key(stored);
+        };
+        let wrap = self.wrap.as_ref().ok_or(SecretError::Corrupt)?;
+        let blob = hex::decode(wrapped).map_err(|_| SecretError::Corrupt)?;
+        key_from_bytes(&wrap.unwrap(&blob).map_err(keystore_error)?)
     }
 }
 
@@ -71,15 +106,43 @@ impl MasterKey for FileMasterKey {
     fn get_or_create(&self) -> Result<MasterKeyBytes, SecretError> {
         let storage = |e: std::io::Error| SecretError::Storage(e.to_string());
         match std::fs::read_to_string(&self.path) {
-            Ok(hex_key) => decode_key(&Zeroizing::new(hex_key)),
+            Ok(stored) => {
+                let stored = Zeroizing::new(stored);
+                let key = self.decode(&stored)?;
+                if self.wrap.is_some() && !stored.trim().starts_with(WRAPPED_PREFIX) {
+                    replace_private(&self.path, &self.encode(key.as_ref())?).map_err(storage)?;
+                    tracing::info!("vault key moved into the Android Keystore");
+                }
+                Ok(key)
+            }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 let key = random_key();
-                write_private(&self.path, &hex::encode(key.as_ref())).map_err(storage)?;
+                write_private(&self.path, &self.encode(key.as_ref())?).map_err(storage)?;
                 Ok(key)
             }
             Err(error) => Err(storage(error)),
         }
     }
+}
+
+fn keystore_error(error: String) -> SecretError {
+    SecretError::Storage(format!("Android Keystore: {error}"))
+}
+
+/// Swap a file's contents without a window where it's missing or partial.
+fn replace_private(path: &std::path::Path, text: &str) -> std::io::Result<()> {
+    let staged = path.with_extension("key.new");
+    match std::fs::remove_file(&staged) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(error),
+        _ => {}
+    }
+    write_private(&staged, text)?;
+    std::fs::rename(&staged, path)?;
+    // Make the rename itself survive a power cut.
+    if let Some(dir) = path.parent() {
+        std::fs::File::open(dir)?.sync_all()?;
+    }
+    Ok(())
 }
 
 fn write_private(path: &std::path::Path, text: &str) -> std::io::Result<()> {
@@ -91,12 +154,18 @@ fn write_private(path: &std::path::Path, text: &str) -> std::io::Result<()> {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
-    options.open(path)?.write_all(text.as_bytes())
+    let mut file = options.open(path)?;
+    file.write_all(text.as_bytes())?;
+    file.sync_all()
 }
 
 fn decode_key(hex_key: &str) -> Result<MasterKeyBytes, SecretError> {
     let bytes = Zeroizing::new(hex::decode(hex_key.trim()).map_err(|_| SecretError::Corrupt)?);
-    let array: [u8; KEY_LEN] = bytes.as_slice().try_into().map_err(|_| SecretError::Corrupt)?;
+    key_from_bytes(&bytes)
+}
+
+fn key_from_bytes(bytes: &[u8]) -> Result<MasterKeyBytes, SecretError> {
+    let array: [u8; KEY_LEN] = bytes.try_into().map_err(|_| SecretError::Corrupt)?;
     Ok(Zeroizing::new(array))
 }
 
@@ -215,6 +284,71 @@ mod tests {
 
     fn secrets() -> Secrets {
         [("password".to_string(), "pw-SECRET".to_string())].into()
+    }
+
+    /// Stand-in for the Android Keystore: XOR with a fixed byte.
+    struct XorWrap;
+
+    impl KeyWrap for XorWrap {
+        fn wrap(&self, key: &[u8]) -> Result<Vec<u8>, String> {
+            Ok(key.iter().map(|b| b ^ 0x5a).collect())
+        }
+        fn unwrap(&self, blob: &[u8]) -> Result<Zeroizing<Vec<u8>>, String> {
+            Ok(Zeroizing::new(blob.iter().map(|b| b ^ 0x5a).collect()))
+        }
+    }
+
+    #[test]
+    fn wrapped_file_key_never_stores_the_raw_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vault.key");
+        let first = FileMasterKey::wrapped(path.clone(), Box::new(XorWrap)).get_or_create().unwrap();
+        let stored = std::fs::read_to_string(&path).unwrap();
+        assert!(stored.starts_with(WRAPPED_PREFIX));
+        assert!(!stored.contains(&hex::encode(first.as_ref())));
+        let again = FileMasterKey::wrapped(path, Box::new(XorWrap)).get_or_create().unwrap();
+        assert_eq!(first.as_ref(), again.as_ref());
+    }
+
+    #[test]
+    fn wrapping_migrates_an_existing_plain_key_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vault.key");
+        let plain = FileMasterKey::new(path.clone()).get_or_create().unwrap();
+        let migrated = FileMasterKey::wrapped(path.clone(), Box::new(XorWrap)).get_or_create().unwrap();
+        assert_eq!(plain.as_ref(), migrated.as_ref());
+        assert!(std::fs::read_to_string(&path).unwrap().starts_with(WRAPPED_PREFIX));
+    }
+
+    /// A keystore that wraps to something it can't unwrap.
+    struct BrokenWrap;
+
+    impl KeyWrap for BrokenWrap {
+        fn wrap(&self, key: &[u8]) -> Result<Vec<u8>, String> {
+            Ok(vec![0; key.len()])
+        }
+        fn unwrap(&self, blob: &[u8]) -> Result<Zeroizing<Vec<u8>>, String> {
+            Ok(Zeroizing::new(blob.to_vec()))
+        }
+    }
+
+    #[test]
+    fn migration_keeps_the_plain_key_when_the_keystore_round_trip_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vault.key");
+        let plain = FileMasterKey::new(path.clone()).get_or_create().unwrap();
+        let before = std::fs::read_to_string(&path).unwrap();
+        assert!(FileMasterKey::wrapped(path.clone(), Box::new(BrokenWrap)).get_or_create().is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
+        assert_eq!(FileMasterKey::new(path).get_or_create().unwrap().as_ref(), plain.as_ref());
+    }
+
+    #[test]
+    fn a_wrapped_key_cannot_be_read_without_the_wrapper() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vault.key");
+        FileMasterKey::wrapped(path.clone(), Box::new(XorWrap)).get_or_create().unwrap();
+        assert!(FileMasterKey::new(path).get_or_create().is_err());
     }
 
     #[test]

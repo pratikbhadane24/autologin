@@ -60,8 +60,13 @@ tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tauri-plugin-updater = "2"
 
+# Android Keystore access for the vault key (store/android_keystore.rs).
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk-context = "0.1"
+
 # OS keychain (macOS/iOS Keychain, Windows Credential Manager, Secret Service).
-# Android keeps the vault key in app-private storage for now (store/vault.rs).
+# Android wraps the vault key with the Keystore instead (store/android_keystore.rs).
 [target.'cfg(not(target_os = "android"))'.dependencies]
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 

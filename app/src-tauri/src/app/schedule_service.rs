@@ -10,7 +10,6 @@ use chrono::{DateTime, Utc};
 use std::sync::Arc;
 
 use tauri::{AppHandle, Manager};
-use tauri_plugin_notification::NotificationExt;
 
 use super::run_control::{self, Selection};
 use super::settings;
@@ -23,6 +22,9 @@ const LAST_RUN_KEY: &str = "schedule.last_run";
 const UNLOCK_WAIT: Duration = Duration::from_secs(120);
 /// Upper bound on one wait, so clock jumps and sleep/wake are noticed quickly.
 const MAX_WAIT: Duration = Duration::from_secs(60);
+/// A scheduled run that finds another run going waits this long for it.
+const BUSY_WAIT: Duration = Duration::from_secs(15 * 60);
+const BUSY_POLL: Duration = Duration::from_secs(5);
 
 pub fn spawn(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
@@ -48,23 +50,62 @@ async fn tick(app: &AppHandle) -> Duration {
     let now = Utc::now();
 
     if let Some(due) = schedule.missed_run(now, last_run) {
-        if let Ok(conn) = state.conn.lock() {
-            if let Err(error) = kv::set(&conn, LAST_RUN_KEY, &now) {
-                tracing::error!(%error, "could not record scheduled run");
-            }
-        }
         tracing::info!(%due, "scheduled run due");
-        if ensure_unlocked(app).await {
-            if let Err(reason) = run_control::start(app, &Selection::All, Trigger::Scheduled, schedule.headless) {
-                tracing::warn!(%reason, "scheduled run not started");
-            }
-        }
+        // Recorded now so this check doesn't fire twice; the run itself may
+        // wait for another run, so it goes on its own task.
+        record_scheduled_run(app);
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move { start_scheduled(&app, schedule.headless).await });
     }
 
     schedule
         .next_run_after(now)
         .and_then(|next| (next - now).to_std().ok())
         .map_or(MAX_WAIT, |until_next| until_next.min(MAX_WAIT))
+}
+
+pub fn record_scheduled_run(app: &AppHandle) {
+    if let Ok(conn) = app.state::<AppState>().conn.lock() {
+        if let Err(error) = kv::set(&conn, LAST_RUN_KEY, &Utc::now()) {
+            tracing::error!(%error, "could not record scheduled run");
+        }
+    }
+}
+
+/// Log in to every account as the scheduled run (desktop timer or phone
+/// alarm). If another run is going (a manual run, or a retry timer that a
+/// phone delayed), wait for it rather than drop the daily run; tell the user
+/// if it still can't start.
+pub async fn start_scheduled(app: &AppHandle, headless: bool) {
+    if !ensure_unlocked(app).await {
+        return;
+    }
+    let deadline = tokio::time::Instant::now() + BUSY_WAIT;
+    loop {
+        match run_control::start(app, &Selection::All, Trigger::Scheduled, headless) {
+            Ok(_) => return,
+            Err(_) if app.state::<AppState>().is_running() && tokio::time::Instant::now() < deadline => {
+                tracing::info!("scheduled run waiting for the current run to finish");
+                wait_until_idle(app, deadline).await;
+            }
+            Err(reason) => {
+                tracing::warn!(%reason, "scheduled run not started");
+                notify(app, &format!("The daily login didn't start: {reason}"));
+                return;
+            }
+        }
+    }
+}
+
+async fn wait_until_idle(app: &AppHandle, deadline: tokio::time::Instant) {
+    let state = app.state::<AppState>();
+    while state.is_running() && tokio::time::Instant::now() < deadline {
+        tokio::time::sleep(BUSY_POLL).await;
+    }
+}
+
+fn notify(app: &AppHandle, message: &str) {
+    super::notify(app, "AutoLogin couldn't log in", message);
 }
 
 /// Make sure saved passwords can be read without blocking forever on an
@@ -83,9 +124,7 @@ async fn ensure_unlocked(app: &AppHandle) -> bool {
         }
     };
     tracing::warn!(%message, "scheduled run skipped: saved passwords locked");
-    if let Err(error) = app.notification().builder().title("AutoLogin couldn't log in").body(&message).show() {
-        tracing::debug!(%error, "notification failed");
-    }
+    notify(app, &message);
     false
 }
 

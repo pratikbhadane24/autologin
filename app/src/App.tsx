@@ -80,6 +80,30 @@ export default function App() {
       .catch((e: CommandError) => setLoadError(e.message));
   }, []);
 
+  // "Next automatic login" goes stale as time passes; refresh it whenever
+  // Settings is shown or the app comes back to the front.
+  useEffect(() => {
+    if (tab !== "settings") return;
+    const reload = () => {
+      if (document.visibilityState === "visible") api.settingsView().then(setSettings).catch(() => undefined);
+    };
+    reload();
+    document.addEventListener("visibilitychange", reload);
+    return () => document.removeEventListener("visibilitychange", reload);
+  }, [tab]);
+
+  // Phones: the daily-login notification (or alarm) opened the app; start
+  // that run now rather than waiting for the background check.
+  useEffect(() => {
+    if (!IS_MOBILE) return;
+    const startIfRequested = () => {
+      if (document.visibilityState === "visible") api.startRequestedRun().catch(() => undefined);
+    };
+    startIfRequested();
+    document.addEventListener("visibilitychange", startIfRequested);
+    return () => document.removeEventListener("visibilitychange", startIfRequested);
+  }, []);
+
   // Broker definitions were updated in the background (signed remote update).
   useEffect(() => {
     const unlisten = listen<number>("catalog-updated", () => {

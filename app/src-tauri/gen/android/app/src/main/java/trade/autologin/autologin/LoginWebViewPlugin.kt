@@ -108,6 +108,7 @@ class LoginWebViewPlugin(private val activity: Activity) : Plugin(activity) {
       // Hidden pages sit behind the app's own UI: still laid out and
       // rendered (so visibility checks work), just not seen.
       if (args.visible) root.addView(frame, matchParent()) else root.addView(frame, 0, matchParent())
+      layOutNow(frame, root)
       container = frame
       webView = view
       invoke.resolve()
@@ -213,6 +214,20 @@ class LoginWebViewPlugin(private val activity: Activity) : Plugin(activity) {
     view.isFocusableInTouchMode = true
     view.webViewClient = LoginClient()
     return view
+  }
+
+  /**
+   * While the screen is off or locked the activity gets no layout pass, so a
+   * newly added page would stay 0x0 and no field would count as visible. Lay
+   * it out by hand now; a real layout pass replaces this when one comes.
+   */
+  private fun layOutNow(frame: View, root: ViewGroup) {
+    val screen = activity.resources.displayMetrics
+    val width = root.width.takeIf { it > 0 } ?: screen.widthPixels
+    val height = root.height.takeIf { it > 0 } ?: screen.heightPixels
+    val exactly = { size: Int -> View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY) }
+    frame.measure(exactly(width), exactly(height))
+    frame.layout(0, 0, width, height)
   }
 
   private fun hideButton(): Button = Button(activity).apply {

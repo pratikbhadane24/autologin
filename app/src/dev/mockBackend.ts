@@ -43,7 +43,7 @@ let accounts: Account[] = [
 
 let settings: AppSettings = {
   manual_headless: false,
-  schedule: { enabled: true, time: "08:45:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], tz: "Asia/Kolkata", retry_failed_after_minutes: 5, headless: true },
+  schedule: { enabled: true, time: "08:45:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], tz: "Asia/Kolkata", retry_failed_after_minutes: 5, headless: true, phone_automatic: false },
   retries: 1, concurrency: 4, start_with_computer: true, auto_update: true, privacy_acknowledged: !location.search.includes("first"), last_seen_version: "2.0.0-beta.1",
 };
 
