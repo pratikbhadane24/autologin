@@ -1,0 +1,121 @@
+# Releasing AutoLogin v2
+
+Releases are built by `.github/workflows/release-v2.yml`. CI for pull requests and pushes is in `ci-v2.yml`. The v1 workflows (`build.yml`, `release.yml`) belong to the Python app.
+
+## Cut a release
+
+1. Bump `version` in `app/src-tauri/Cargo.toml`. This is the only place the app version is set, because `tauri.conf.json` has no version. Keep `app/package.json` in step for tidiness.
+2. Add an entry at the top of `RELEASES` in `app/src/content/whatsNew.ts`. Write it in the user's words. The GitHub release notes are generated separately from commits by git-cliff (`cliff.toml`).
+3. Commit with a conventional message, e.g. `chore(release): prepare for v2.0.1`. git-cliff skips commits in this form.
+4. Tag and push:
+   ```sh
+   git tag v2.0.1 && git push origin v2.0.1
+   ```
+5. The workflow runs these steps:
+   - It checks that the Cargo.toml version equals the tag.
+   - It creates a **draft** release with the git-cliff notes. Tags with a `-` suffix (`v2.1.0-beta.1`) are marked as pre-releases.
+   - It builds Windows (MSI and NSIS; pre-releases get NSIS only, because WiX rejects non-numeric pre-release versions), macOS universal (`.dmg` and `.app.tar.gz`) and Linux (AppImage and `.deb`). It uploads these together with the updater `.sig` files and `latest.json`.
+   - It signs `brokers-manifest.json` and uploads it with `brokers-manifest.json.sig`.
+   - For non-pre-releases, it checks that the release contains exactly one `.msi`, one `.dmg` and one `.AppImage`. The v1 updater depends on this (see below).
+6. Check the draft, edit the notes if needed, then **Publish**. Installed apps see nothing until you publish. The v1 updater, the v2 broker-manifest fetch and the Tauri updater all read `releases/latest`, which excludes drafts and pre-releases.
+
+To rebuild an existing tag, use **Actions → Release (v2) → Run workflow** with `tag` set. It reuses the existing release and overwrites its assets.
+
+Commit groups in the notes:
+
+| Commit | Heading |
+| --- | --- |
+| `feat:` | New |
+| `fix:` | Fixed |
+| any type with scope `brokers` (e.g. `fix(brokers): ...`, `feat(app,brokers): ...`) | Brokers |
+
+git-cliff can't group commits by the paths they touch. Use the `brokers` scope for every change under `app/src-tauri/brokers/`.
+
+## Secrets and variables
+
+| Name | Kind | Required | Purpose |
+| --- | --- | --- | --- |
+| `TAURI_SIGNING_PRIVATE_KEY` | secret | yes, once the updater is enabled | Signs updater artifacts. Generate with `pnpm tauri signer generate`. |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | secret | if the key has one | Password for the key above. |
+| `MANIFEST_SIGNING_KEY` | secret | yes | 32-byte hex ed25519 seed that signs `brokers-manifest.json`. |
+| `MANIFEST_PUBLIC_KEY` | variable | recommended | Hex public key that the app trusts. When set, CI checks the signature against it, which catches a mismatch between the secret and the app. |
+| `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY` | secret | optional | Developer ID signing. `APPLE_CERTIFICATE` is the base64 of the `.p12` file. |
+| `APPLE_ID`, `APPLE_PASSWORD` (app-specific password), `APPLE_TEAM_ID` | secret | optional | Notarization. Used only together with the certificate. |
+
+Set all six Apple secrets or none of them. If `APPLE_CERTIFICATE` is set and any of the others is missing, the workflow fails. With none set, the macOS build is ad-hoc signed (`APPLE_SIGNING_IDENTITY=-`), and users have to right-click → Open the first time, as with v1.
+
+Each secret reaches only the step that uses it. `TAURI_SIGNING_*` and `APPLE_*` go only to the tauri-action build step, and `MANIFEST_SIGNING_KEY` goes only to the sign step. Workflows default to `contents: read`, and `contents: write` is granted only to the jobs that create the release or upload to it.
+
+Windows code signing isn't wired up yet. To add it, set `bundle.windows.signCommand` (e.g. Azure Trusted Signing) or `certificateThumbprint` in `tauri.conf.json` and import the certificate in the Windows job. Unsigned installers trigger SmartScreen.
+
+### Action pinning
+
+Every action in `ci-v2.yml` and `release-v2.yml` is pinned to a full 40-character commit SHA, with the version in a trailing comment (`uses: owner/repo@<sha> # v1.2.3`). `.github/dependabot.yml` (github-actions, weekly) opens PRs that bump the SHA and the comment together.
+
+To pin by hand, resolve the tag to its commit. Dereference annotated tags with `gh api repos/<o>/<r>/git/tags/<sha>`:
+
+```sh
+gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object
+```
+
+`dtolnay/rust-toolchain` is pinned to a commit on its `stable` branch. When it is pinned by SHA, the `toolchain: stable` input is required.
+
+### Manifest signing key
+
+```sh
+node scripts/sign-manifest.mjs --keygen ~/.autologin-keys/manifest.key   # secret to file (0600), prints public key only
+node scripts/sign-manifest.mjs --self-test   # keygen -> sign real brokers dir -> verify -> tamper checks
+```
+
+- Store the seed as the `MANIFEST_SIGNING_KEY` secret.
+- Add the public key to `TRUSTED_MANIFEST_KEYS` in `app/src-tauri/src/broker/remote.rs`, and set it as the `MANIFEST_PUBLIC_KEY` variable.
+- Until the key is in `TRUSTED_MANIFEST_KEYS`, apps reject every remote manifest and run on their bundled copy.
+- To rotate the key, ship an app release that trusts both the old and new keys before you switch the secret.
+
+To verify a published bundle locally:
+
+```sh
+gh release download v2.0.1 -p 'brokers-manifest.json*' -D /tmp/m
+node scripts/sign-manifest.mjs --verify <pubkeyhex> --out /tmp/m [--dir app/src-tauri/brokers]
+```
+
+## Broker-only fix (no app release)
+
+Installed apps fetch `releases/latest/download/brokers-manifest.json` (and the `.sig` next to it). They use it only if it is signed by a trusted key, passes validation, and has a **higher `manifest_version`** than the copy they already have.
+
+1. Fix the broker file(s) in `app/src-tauri/brokers/` and bump `manifest_version` in `brokers/index.toml`. Commit as `fix(brokers): ...` and merge to the release branch.
+2. Go to **Actions → Release (v2) → Run workflow**, choose that branch, tick `manifest_only`, and leave `tag` empty. The workflow then:
+   - signs the brokers directory from the branch head;
+   - refuses to run unless `manifest_version` is higher than the one on the release;
+   - replaces the two manifest assets on the **latest published release**.
+3. Apps pick up the fix on their next manifest check. The next full release bundles the fix as well.
+
+## How v1 users are upgraded to v2
+
+v1 (`src/autologin/utils/updater.py`) does the following:
+
+- It calls `GET /repos/pratikbhadane24/autologin/releases/latest`.
+- It compares `tag_name` with its own version (`2.x` > `1.0.24`).
+- It downloads the **first** asset whose lower-cased name ends in `.msi` (Windows), `.dmg` (macOS) or `.appimage` (Linux, skipping names containing `arm` or `aarch64` on x86).
+- It opens that file: the MSI runs, the DMG is mounted for drag-to-Applications, and the folder containing the AppImage is opened.
+
+A published, non-pre-release v2 release is therefore offered to v1 users automatically. Asset names produced by Tauri:
+
+| Platform | v1 picks | Ignored by v1 |
+| --- | --- | --- |
+| Windows | `AutoLogin_<ver>_x64_en-US.msi` | `*-setup.exe`, `*.msi.sig` |
+| macOS | `AutoLogin_<ver>_universal.dmg` (one file for both architectures) | `AutoLogin_universal.app.tar.gz(.sig)` |
+| Linux | `AutoLogin_<ver>_amd64.AppImage` | `*.AppImage.sig`, `.deb` |
+
+`brokers-manifest.json(.sig)` and `latest.json` match none of these.
+
+Gotchas:
+
+- **The v1 workflows also fire on v2 tags.** `release.yml` and `build.yml` on this branch trigger on `v*`. On a `v2.*` tag they would try a Briefcase build. If that succeeds, `release.yml` publishes a non-draft release on the same tag. Before the first v2 tag, delete those workflows from the v2 branch or add `tags-ignore: ['v2.*']` to them.
+- **Pre-releases never reach v1**, because `releases/latest` skips them. Betas have to be installed manually.
+- **Keep exactly one installer per extension.** v1 takes the first match, so an extra `.msi`, `.dmg` or `.AppImage` (for example, a separate arm64 dmg) makes its choice depend on asset order. The `check-assets` job enforces this rule.
+- **Windows: v1 is removed automatically.** The real v1.0.24 MSI has UpgradeCode `{A6D3467D-D77D-5786-AA4F-92D15AB50522}` and installs per-user (`ALLUSERS=2`, `MSIINSTALLPERUSER=1`). Tauri's MSI installs per-machine. Windows Installer can't upgrade across scopes, so matching the UpgradeCode would not help. Instead, on every launch v2 looks for a `DisplayName = AutoLogin`, version `1.*`, MSI entry under `HKCU\...\Uninstall` and runs `msiexec /x {ProductCode} /qn /norestart` (`app/src-tauri/src/v1_uninstall.rs`). This happens after v1's data has been migrated. The per-user uninstall needs no admin prompt. If v1 is still running, the removal is retried on the next launch.
+- **macOS**: the bundle is named `AutoLogin.app`, the same as v1, so dragging it into Applications replaces v1.
+- **Linux**: v1 only opens the download folder. The user has to replace the AppImage by hand.
+- **A later v1.x release would become "latest"** and hide v2 from the v2 manifest and updater fetch. Don't publish v1 releases after v2 ships, or mark them as not-latest.
+- **Updater artifacts are built only in CI.** The release workflow passes `--config src-tauri/tauri.release.conf.json`, which sets `createUpdaterArtifacts: true`, so `TAURI_SIGNING_PRIVATE_KEY` is required there but not for local builds. The app checks `releases/latest/download/latest.json` and verifies it against the `pubkey` in `tauri.conf.json`.
