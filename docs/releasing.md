@@ -92,7 +92,7 @@ Installed apps fetch `releases/latest/download/brokers-manifest.json` (and the `
 
 ## How v1 users are upgraded to v2
 
-v1 (`src/autologin/utils/updater.py`) does the following:
+v1 (its updater lives in `src/autologin/utils/updater.py` at tag `v1.0.24`; the v1 code was removed from this branch) does the following:
 
 - It calls `GET /repos/pratikbhadane24/autologin/releases/latest`.
 - It compares `tag_name` with its own version (`2.x` > `1.0.24`).
@@ -111,7 +111,7 @@ A published, non-pre-release v2 release is therefore offered to v1 users automat
 
 Gotchas:
 
-- **The v1 workflows also fire on v2 tags.** `release.yml` and `build.yml` on this branch trigger on `v*`. On a `v2.*` tag they would try a Briefcase build. If that succeeds, `release.yml` publishes a non-draft release on the same tag. Before the first v2 tag, delete those workflows from the v2 branch or add `tags-ignore: ['v2.*']` to them.
+- **v1 build/release workflows are gone.** The Python app and its Briefcase workflows were removed in v2; only `ci-v2.yml` and `release-v2.yml` run. v1 sources remain at tag `v1.0.24`.
 - **Pre-releases never reach v1**, because `releases/latest` skips them. Betas have to be installed manually.
 - **Keep exactly one installer per extension.** v1 takes the first match, so an extra `.msi`, `.dmg` or `.AppImage` (for example, a separate arm64 dmg) makes its choice depend on asset order. The `check-assets` job enforces this rule.
 - **Windows: v1 is removed automatically.** The real v1.0.24 MSI has UpgradeCode `{A6D3467D-D77D-5786-AA4F-92D15AB50522}` and installs per-user (`ALLUSERS=2`, `MSIINSTALLPERUSER=1`). Tauri's MSI installs per-machine. Windows Installer can't upgrade across scopes, so matching the UpgradeCode would not help. Instead, on every launch v2 looks for a `DisplayName = AutoLogin`, version `1.*`, MSI entry under `HKCU\...\Uninstall` and runs `msiexec /x {ProductCode} /qn /norestart` (`app/src-tauri/src/v1_uninstall.rs`). This happens after v1's data has been migrated. The per-user uninstall needs no admin prompt. If v1 is still running, the removal is retried on the next launch.
