@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     tags:
-      - 'v*'
+      - 'v1.*'  # v2 releases use release-v2.yml
   pull_request:
     branches: [main]
 

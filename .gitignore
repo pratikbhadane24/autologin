@@ -177,3 +177,9 @@ cython_debug/
 
 # All .DS_Store in all directories
 **/.DS_Store
+
+# ── v2 (Tauri app) ──
+# The Python template's "lib/" rule above must not hide the UI source.
+!app/src/lib/
+# Local tooling output: screenshots and page dumps (may contain account data).
+.playwright-mcp/
