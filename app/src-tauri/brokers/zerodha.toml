@@ -1,0 +1,66 @@
+id = "zerodha"
+name = "Zerodha"
+kind = "browser"
+aliases = ["zerodha", "kite"]
+
+[[fields]]
+key = "client_id"
+label = "User ID"
+from_cirrus = true
+
+[[fields]]
+key = "api_key"
+label = "Kite API Key"
+from_cirrus = true
+help = "From your own Kite Connect app (developers.kite.trade). Set the app's redirect URL to https://app.cirrus.trade/add-broker-account/zerodha."
+
+[[fields]]
+key = "password"
+label = "Password"
+secret = true
+
+[[fields]]
+key = "totp_key"
+label = "TOTP Secret"
+secret = true
+totp = true
+
+[session]
+reset = "06:00"
+tz = "Asia/Kolkata"
+
+[[steps]]
+action = "goto"
+url = "https://kite.zerodha.com/connect/login?v=3&api_key={url:api_key}&redirect_params=account_id%3D{url:client_id}"
+
+[[steps]]
+action = "fill"
+sel = ["#userid"]
+value = "{client_id}"
+
+[[steps]]
+action = "fill"
+sel = ["#password"]
+value = "{password}"
+
+[[steps]]
+action = "click"
+sel = ["button[type=\"submit\"]", ".button-orange"]
+
+[[steps]]
+action = "fill"
+sel = ["input[label=\"External TOTP\"]"]
+value = "{totp}"
+
+[success]
+text = "Account Saved!"
+
+[failure]
+text_any = ["Invalid username or password", "Invalid TOTP"]
+
+# The redirect URL is set in the user's own Kite Connect app, so match any
+# Cirrus host. Kite appends request_token (and account_id from redirect_params).
+[callback]
+url_matches = "{tenant.callback_hosts}/add-broker-account/zerodha"
+endpoint = "/api/sessions/zerodha/callback"
+body = { client_id = "{client_id}", request_token = "{query.request_token}" }

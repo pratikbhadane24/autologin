@@ -1,0 +1,63 @@
+id = "motilal"
+name = "Motilal Oswal"
+kind = "http"
+flow = "motilal"
+aliases = ["motilal", "motilal oswal", "motilaloswal", "mosl"]
+
+[[fields]]
+key = "client_id"
+label = "Client ID"
+from_cirrus = true
+
+[[fields]]
+key = "api_key"
+label = "API Key"
+help = "From your Motilal Oswal OpenAPI registration (invest.motilaloswal.com)."
+from_cirrus = true
+
+[[fields]]
+key = "password"
+label = "Password"
+secret = true
+
+[[fields]]
+key = "dob"
+label = "Date of Birth (2FA)"
+placeholder = "dd/mm/yyyy"
+secret = true
+
+[[fields]]
+key = "totp_key"
+label = "TOTP Secret"
+secret = true
+totp = true
+
+[consts]
+login_url = "https://openapi.motilaloswal.com/rest/login/v3/authdirectapi"
+
+# Device headers Motilal's API expects. Kept as data so they can be updated
+# from the remote manifest if the API starts rejecting them.
+[headers]
+"User-Agent" = "MOSL/V.1.1.0"
+sourceid = "web"
+macaddress = "00:00:00:00:00:00"
+clientlocalip = "127.0.0.1"
+clientpublicip = "1.2.3.4"
+vendorinfo = "{client_id}"
+ApiKey = "{api_key}"
+osname = "Windows 10"
+osversion = "10.0.19041"
+devicemodel = "AHV"
+manufacturer = "DELL"
+browsername = "Chrome"
+browserversion = "135.0"
+productname = "Investor"
+productversion = "1"
+
+[session]
+reset = "05:00"
+tz = "Asia/Kolkata"
+
+[callback]
+endpoint = "/api/sessions/motilal-oswal/callback"
+body = { authtoken = "{vars.auth_token}", client_id = "{client_id}" }

@@ -1,0 +1,41 @@
+id = "fyers"
+name = "Fyers"
+kind = "http"
+flow = "fyers"
+# The shared-app flow below no longer works; Fyers will move to the user's
+# own API app. Kept for reference, skipped by the runner until then.
+availability = "coming_soon"
+aliases = ["fyers"]
+
+[[fields]]
+key = "client_id"
+label = "Fyers ID"
+from_cirrus = true
+
+[[fields]]
+key = "mpin"
+label = "PIN"
+secret = true
+pattern = "^\\d{4}$"
+
+[[fields]]
+key = "totp_key"
+label = "TOTP Secret"
+secret = true
+totp = true
+
+[consts]
+vagator_base = "https://api-t2.fyers.in/vagator/v2"
+api_base = "https://api-t1.fyers.in/api/v3"
+app_id = "YPUVOWAXFE-100"
+app_type = "102"
+redirect_uri = "{tenant.tradinx_app}/broker-login/fyers-login"
+state = "sample_state"
+
+[session]
+reset = "05:00"
+tz = "Asia/Kolkata"
+
+[callback]
+endpoint = "/api/sessions/fyers/callback"
+body = { auth_code = "{vars.auth_code}", state = "{client_id}" }

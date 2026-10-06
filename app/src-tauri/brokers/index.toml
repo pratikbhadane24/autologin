@@ -1,0 +1,31 @@
+# Shared settings for every broker manifest.
+# Bump manifest_version whenever any broker file changes; the app keeps the
+# newest valid manifest it has seen (bundled, cached or remote).
+schema_version = 1
+manifest_version = 1
+
+# Cirrus deployments, referenced as {tenant.<key>}. Every tenant defines the
+# same keys. Broker redirects go to cirrus_app (app.cirrus.trade), which is
+# also the backend's APP_BASE_URL. Accounts (and Cirrus dashboard pastes)
+# name a tenant by id; URLs are never taken from a paste, so codes can only
+# go to tenants listed here.
+default_tenant = "cirrus"
+
+[tenants.cirrus]
+name = "Cirrus"
+cirrus_app = "https://app.cirrus.trade"
+broker_auth_api = "https://broker-auth-api.cirrus.trade"
+# Regex prefix matching this tenant's callback pages (any subdomain).
+callback_hosts = "^https://([a-z0-9-]+\\.)?cirrus\\.trade"
+pocketful_app_id = "dZCQSOGrV1"
+# Fyers' old shared-app redirect (Fyers is "coming soon").
+tradinx_app = "https://app.tradinx.in"
+
+[tenants.pocketful]
+name = "Pocketful"
+cirrus_app = "https://cirrus.pocketful.in"
+# VERIFY: Pocketful tenant's broker-auth API host and Pocketful app id.
+broker_auth_api = "https://broker-auth-api.cirrus.trade"
+callback_hosts = "^https://cirrus\\.pocketful\\.in"
+pocketful_app_id = "N6DKVVOmCe"
+tradinx_app = "https://app.tradinx.in"

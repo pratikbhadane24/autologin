@@ -1,0 +1,88 @@
+.settings {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-6) 0;
+  max-width: 760px;
+}
+
+.settings-section {
+  display: grid;
+  gap: var(--space-3);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--line);
+}
+.settings-section:last-child {
+  border-bottom: none;
+}
+.settings-section h2 {
+  font-size: var(--step-1);
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.schedule-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  align-items: end;
+}
+.schedule-row[aria-disabled="true"] {
+  opacity: 0.55;
+}
+.time-input {
+  width: 9rem;
+  font-size: var(--step-1);
+}
+
+.days {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.days legend {
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+  padding: 0;
+}
+.day {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+.day:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.recommendation {
+  background: var(--primary-soft);
+  border-radius: var(--radius-control);
+  padding: var(--space-2) var(--space-3);
+}
+
+.button.link {
+  padding: 0;
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.field.narrow {
+  max-width: 360px;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

@@ -1,0 +1,65 @@
+/* Early-morning sky palette: the app is used around 8:45 AM. */
+:root {
+  --paper: #f3f6f9;
+  --surface: #ffffff;
+  --sunken: #e8edf2;
+  --ink: #1b2430;
+  --ink-soft: #536071;
+  --line: #d5dde6;
+  --primary: #3a5ba0;
+  --primary-ink: #ffffff;
+  --primary-soft: #e3eaf7;
+  --ok: #1f8a5b;
+  --ok-soft: #dcf1e6;
+  --fail: #c2412d;
+  --fail-soft: #fae3de;
+  --idle: #8a94a6;
+  --warn: #9a6a12;
+  --warn-soft: #f6ecd6;
+
+  --font-display: "Bricolage Grotesque Variable", system-ui, sans-serif;
+  --font-body: "Public Sans Variable", system-ui, sans-serif;
+
+  /* Type scale (1.2 minor third) */
+  --step--1: 0.833rem;
+  --step-0: 0.95rem;
+  --step-1: 1.15rem;
+  --step-2: 1.4rem;
+  --step-4: 2.2rem;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --radius-control: 6px;
+  --radius-panel: 10px;
+  --shadow-panel: 0 18px 50px rgb(27 36 48 / 18%);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #10161f;
+    --surface: #17202b;
+    --sunken: #0c1118;
+    --ink: #e6ecf2;
+    --ink-soft: #9aa7b8;
+    --line: #2a3542;
+    --primary: #7d9de0;
+    --primary-ink: #0c1118;
+    --primary-soft: #1d2a42;
+    --ok: #4cc48c;
+    --ok-soft: #12301f;
+    --fail: #f07a66;
+    --fail-soft: #3a1a15;
+    --idle: #6b7687;
+    --warn: #e0b45a;
+    --warn-soft: #33270f;
+    --shadow-panel: 0 18px 50px rgb(0 0 0 / 50%);
+    color-scheme: dark;
+  }
+}

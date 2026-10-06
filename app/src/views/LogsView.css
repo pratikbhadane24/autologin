@@ -1,0 +1,22 @@
+.logs {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-6) 0;
+  grid-template-rows: auto auto auto 1fr;
+  min-height: 0;
+  height: 100%;
+}
+
+.log-text {
+  margin: 0;
+  background: var(--sunken);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 240px;
+}

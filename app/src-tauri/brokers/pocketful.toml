@@ -1,0 +1,75 @@
+id = "pocketful"
+name = "Pocketful"
+kind = "browser"
+aliases = ["pocketful"]
+
+[[fields]]
+key = "client_id"
+label = "Client ID"
+from_cirrus = true
+
+[[fields]]
+key = "password"
+label = "Password"
+secret = true
+
+[[fields]]
+key = "mpin"
+label = "PIN"
+secret = true
+
+[consts]
+# Pocketful OAuth app differs per tenant (the backend's POCKETFUL_APP_ID).
+oauth_host = "https://algo.pocketful.in"
+oauth_client_id = "{tenant.pocketful_app_id}"
+scope = "orders+holdings"
+
+[session]
+reset = "05:00"
+tz = "Asia/Kolkata"
+
+[[steps]]
+action = "goto"
+url = "{consts.oauth_host}/oauth2/auth?scope={consts.scope}&state={url:b64:client_id}&redirect_uri={tenant.cirrus_app}/add-broker-account/pocketful&response_type=code&client_id={consts.oauth_client_id}"
+
+# Verified on the live page (2026-10-05): channel_id / channel_secret.
+# Client ID is typed, not filled: the page upper-cases it on keyup.
+[[steps]]
+action = "type"
+sel = ["input[name=\"channel_id\"]", "input[type=\"text\"]"]
+value = "{client_id}"
+
+[[steps]]
+action = "fill"
+sel = ["input[name=\"channel_secret\"]", "input[type=\"password\"]"]
+value = "{password}"
+
+[[steps]]
+action = "click"
+sel = ["button[type=\"submit\"]", "text=Sign In"]
+
+# PIN page (/oauth/twofa), verified live 2026-10-05: one password-type input
+# named "answers[]" (id "pwd") and a Submit button. Optional so a login that
+# goes straight to Cirrus isn't held up.
+[[steps]]
+action = "optional"
+when = ["input[name=\"answers[]\"]", "#pwd"]
+timeout_ms = 10000
+steps = [
+  { action = "fill", sel = ["input[name=\"answers[]\"]", "#pwd"], value = "{mpin}" },
+  { action = "click", sel = ["button[type=\"submit\"]", "text=Submit"] },
+]
+
+# Shown under the sign-in form when Pocketful refuses the login, e.g.
+# "43500 - Something went wrong, please retry or contact broker".
+[failure]
+text_any = ["Something went wrong", "Invalid", "Incorrect"]
+
+[success]
+url_matches = "{tenant.callback_hosts}/add-broker-account/"
+text = "Account Saved!"
+
+[callback]
+url_matches = "{tenant.callback_hosts}/add-broker-account/pocketful"
+endpoint = "/api/sessions/pocketful/callback"
+body = { state = "{query.state}", code = "{query.code}" }

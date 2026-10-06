@@ -1,0 +1,42 @@
+.privacy-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--paper);
+  overflow-y: auto;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6) var(--space-5);
+}
+
+.privacy {
+  max-width: 760px;
+  display: grid;
+  gap: var(--space-5);
+}
+
+.privacy-from {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.privacy h1 {
+  font-size: var(--step-4);
+  max-width: 22ch;
+}
+
+.privacy-points {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-5) var(--space-6);
+}
+.privacy-points h2 {
+  font-size: var(--step-1);
+  margin-bottom: var(--space-1);
+}
+
+.privacy-actions {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
