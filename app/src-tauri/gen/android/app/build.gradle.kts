@@ -14,6 +14,10 @@ val tauriProperties = Properties().apply {
     }
 }
 
+// Release signing key, provided by CI (docs/releasing.md). Without it a
+// release build is unsigned, which is fine locally but can't be installed.
+val releaseKeystore: String? = System.getenv("ANDROID_KEYSTORE_PATH")
+
 android {
     compileSdk = 37
     namespace = "trade.autologin.autologin"
@@ -24,6 +28,16 @@ android {
         targetSdk = 37
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+    }
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
     }
     buildTypes {
         getByName("debug") {
@@ -39,6 +53,9 @@ android {
             }
         }
         getByName("release") {
+            if (releaseKeystore != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             optimization {
                enable = true
             }

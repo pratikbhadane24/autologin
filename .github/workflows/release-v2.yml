@@ -1,7 +1,8 @@
 name: Release (v2)
 
-# Builds AutoLogin v2 (Tauri) for Windows, macOS (universal) and Linux into a
-# DRAFT GitHub release, plus a signed broker-manifest bundle.
+# Builds AutoLogin v2 (Tauri) for Windows, macOS (universal), Linux and
+# Android (APK) into a DRAFT GitHub release, plus a signed broker-manifest
+# bundle.
 #
 #   tag push v2.x.y            full release (draft; publish it by hand)
 #   workflow_dispatch          re-run a full release for an existing tag, or
@@ -277,6 +278,93 @@ jobs:
           releaseId: ${{ needs.release.outputs.release_id }}
           includeUpdaterJson: true
           args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
+
+  android:
+    name: Build (android)
+    needs: [prepare, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # upload the APK to the draft
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: refs/tags/${{ needs.prepare.outputs.tag }}
+          persist-credentials: false
+
+      # The APK must always be signed with the same key, or phones refuse the
+      # update. No key yet: skip (with a warning) rather than fail the release.
+      - name: Detect Android signing secrets
+        id: keystore
+        env:
+          HAS_ALL: >-
+            ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' &&
+            secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+        run: |
+          if [ "$HAS_ALL" = "true" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Android signing secrets are not set; no APK in this release (see docs/releasing.md)"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable branch
+        if: steps.keystore.outputs.signed == 'true'
+        with:
+          toolchain: stable # required when pinned by SHA
+          targets: aarch64-linux-android,armv7-linux-androideabi
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: steps.keystore.outputs.signed == 'true'
+        with:
+          workspaces: app/src-tauri -> target
+          key: release-android
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        if: steps.keystore.outputs.signed == 'true'
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: steps.keystore.outputs.signed == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        if: steps.keystore.outputs.signed == 'true'
+        working-directory: app
+        run: pnpm install --frozen-lockfile
+
+      # The runner image ships the Android SDK, NDK and JDK 21.
+      - name: Build signed APK
+        if: steps.keystore.outputs.signed == 'true'
+        working-directory: app
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64" NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          (umask 077 && printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_PATH")
+          trap 'rm -f "$ANDROID_KEYSTORE_PATH"' EXIT
+          pnpm tauri android build --apk --target aarch64 --target armv7
+
+      - name: Upload APK to the draft release
+        if: steps.keystore.outputs.signed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          apk="AutoLogin_${VERSION}_android.apk"
+          cp app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk "$apk"
+          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner" verify "$apk"
+          gh release upload "$TAG" "$apk" --clobber
 
   manifest:
     name: Signed broker manifest

@@ -15,6 +15,7 @@ Releases are built by `.github/workflows/release-v2.yml`. CI for pull requests a
    - It checks that the Cargo.toml version equals the tag.
    - It creates a **draft** release with the git-cliff notes. Tags with a `-` suffix (`v2.1.0-beta.1`) are marked as pre-releases.
    - It builds Windows (MSI and NSIS; pre-releases get NSIS only, because WiX rejects non-numeric pre-release versions), macOS universal (`.dmg` and `.app.tar.gz`) and Linux (AppImage and `.deb`). It uploads these together with the updater `.sig` files and `latest.json`.
+   - It builds a signed Android APK (`AutoLogin_<version>_android.apk`, arm64 and armv7), if the Android signing secrets are set. Without them the job warns and skips, and the rest of the release goes ahead.
    - It signs `brokers-manifest.json` and uploads it with `brokers-manifest.json.sig`.
    - For non-pre-releases, it checks that the release contains exactly one `.msi`, one `.dmg` and one `.AppImage`. The v1 updater depends on this (see below).
 6. Check the draft, edit the notes if needed, then **Publish**. Installed apps see nothing until you publish. The v1 updater, the v2 broker-manifest fetch and the Tauri updater all read `releases/latest`, which excludes drafts and pre-releases.
@@ -41,10 +42,11 @@ git-cliff can't group commits by the paths they touch. Use the `brokers` scope f
 | `MANIFEST_PUBLIC_KEY` | variable | recommended | Hex public key that the app trusts. When set, CI checks the signature against it, which catches a mismatch between the secret and the app. |
 | `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY` | secret | optional | Developer ID signing. `APPLE_CERTIFICATE` is the base64 of the `.p12` file. |
 | `APPLE_ID`, `APPLE_PASSWORD` (app-specific password), `APPLE_TEAM_ID` | secret | optional | Notarization. Used only together with the certificate. |
+| `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | secret | for an APK | Signs the Android APK. See [Android signing key](#android-signing-key). |
 
 Set all six Apple secrets or none of them. If `APPLE_CERTIFICATE` is set and any of the others is missing, the workflow fails. With none set, the macOS build is ad-hoc signed (`APPLE_SIGNING_IDENTITY=-`), and users have to right-click → Open the first time, as with v1.
 
-Each secret reaches only the step that uses it. `TAURI_SIGNING_*` and `APPLE_*` go only to the tauri-action build step, and `MANIFEST_SIGNING_KEY` goes only to the sign step. Workflows default to `contents: read`, and `contents: write` is granted only to the jobs that create the release or upload to it.
+Each secret reaches only the step that uses it. `TAURI_SIGNING_*` and `APPLE_*` go only to the tauri-action build step, `ANDROID_*` only to the APK build step (the keystore is written to the runner's temp folder and deleted afterwards), and `MANIFEST_SIGNING_KEY` goes only to the sign step. Workflows default to `contents: read`, and `contents: write` is granted only to the jobs that create the release or upload to it.
 
 Windows code signing isn't wired up yet. To add it, set `bundle.windows.signCommand` (e.g. Azure Trusted Signing) or `certificateThumbprint` in `tauri.conf.json` and import the certificate in the Windows job. Unsigned installers trigger SmartScreen.
 
@@ -78,6 +80,31 @@ To verify a published bundle locally:
 gh release download v2.0.1 -p 'brokers-manifest.json*' -D /tmp/m
 node scripts/sign-manifest.mjs --verify <pubkeyhex> --out /tmp/m [--dir app/src-tauri/brokers]
 ```
+
+### Android signing key
+
+Every AutoLogin APK must be signed with the same key forever. Android installs an update only when its signature matches the installed app. If the key is lost, users have to uninstall and reinstall, which deletes their saved accounts unless they exported a backup first. Keep the keystore file and its password in a password manager, outside the repository.
+
+Create it once, in your own terminal:
+
+```sh
+keytool -genkeypair -v -keystore ~/.autologin-keys/autologin-release.jks \
+  -alias autologin -keyalg RSA -keysize 4096 -validity 10000 \
+  -dname "CN=AutoLogin, O=Quartgen Solutions Private Limited, C=IN"
+```
+
+`keytool` asks for the keystore and key passwords. Then add the four secrets:
+
+```sh
+base64 -i ~/.autologin-keys/autologin-release.jks | gh secret set ANDROID_KEYSTORE_BASE64
+gh secret set ANDROID_KEYSTORE_PASSWORD   # prompts; paste the keystore password
+gh secret set ANDROID_KEY_ALIAS --body autologin
+gh secret set ANDROID_KEY_PASSWORD        # prompts; paste the key password
+```
+
+To build a signed APK locally, set `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`, then run `pnpm tauri android build --apk` in `app/`. Without them the release APK is unsigned and can't be installed.
+
+Android has no self-updater: users install a new APK from the GitHub release over the old one, and their accounts stay.
 
 ## Broker-only fix (no app release)
 
