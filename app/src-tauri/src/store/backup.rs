@@ -33,6 +33,12 @@ const KEY_LEN: usize = 32;
 const KDF_MEMORY_KIB: u32 = 64 * 1024;
 const KDF_ITERATIONS: u32 = 3;
 const KDF_PARALLELISM: u32 = 1;
+/// Upper bounds accepted when *reading* a backup. The file states its own
+/// key-derivation settings; without limits a crafted file could make import
+/// allocate gigabytes or run for hours. Generous headroom over our defaults.
+const MAX_KDF_MEMORY_KIB: u32 = 256 * 1024;
+const MAX_KDF_ITERATIONS: u32 = 10;
+const MAX_KDF_PARALLELISM: u32 = 8;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum BackupError {
@@ -219,6 +225,14 @@ fn decrypt(text: &str, password: &str) -> Result<BackupData, BackupError> {
     if file.kdf.algorithm != "argon2id" || file.cipher != "xchacha20poly1305" {
         return Err(BackupError::Corrupt("unsupported encryption".into()));
     }
+    let kdf = &file.kdf;
+    if kdf.memory_kib > MAX_KDF_MEMORY_KIB
+        || kdf.iterations > MAX_KDF_ITERATIONS
+        || kdf.parallelism == 0
+        || kdf.parallelism > MAX_KDF_PARALLELISM
+    {
+        return Err(BackupError::Corrupt("unsupported key settings".into()));
+    }
     let decode = |field: &str| B64.decode(field).map_err(|_| BackupError::Corrupt("bad encoding".into()));
     let salt = decode(&file.kdf.salt)?;
     let nonce = decode(&file.nonce)?;
@@ -290,6 +304,18 @@ mod tests {
     #[test]
     fn each_export_uses_fresh_salt_and_nonce() {
         assert_ne!(encrypted("correct horse"), encrypted("correct horse"));
+    }
+
+    #[test]
+    fn rejects_backups_asking_for_excessive_key_derivation_work() {
+        // A crafted file could otherwise make import allocate gigabytes or spin.
+        let base: serde_json::Value = serde_json::from_str(&encrypted("correct horse")).unwrap();
+        for (field, value) in [("memory_kib", 64 * 1024 * 1024), ("iterations", 1_000_000), ("parallelism", 64)] {
+            let mut file = base.clone();
+            file["kdf"][field] = value.into();
+            let result = read_backup(&file.to_string(), Some("correct horse"));
+            assert!(matches!(result, Err(BackupError::Corrupt(_))), "{field}: {result:?}");
+        }
     }
 
     #[test]
