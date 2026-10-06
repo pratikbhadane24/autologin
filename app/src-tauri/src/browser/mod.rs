@@ -1,7 +1,17 @@
 //! Browser automation behind a small trait, so the step engine can be tested
 //! with a fake page and a mobile WebView driver can be added later.
 
+// Desktop drives Chrome/Edge over CDP; mobile will drive the system WebView
+// (step 2 of the Android port). Both expose the same session/page API.
+#[cfg(desktop)]
 pub mod chromium;
+#[cfg(mobile)]
+pub mod mobile;
+
+#[cfg(desktop)]
+pub use chromium::{ChromePage as BrowserPage, ChromeSession as BrowserSession, LaunchOptions};
+#[cfg(mobile)]
+pub use mobile::{BrowserPage, BrowserSession, LaunchOptions};
 
 use std::fmt;
 

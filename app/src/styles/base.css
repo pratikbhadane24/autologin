@@ -12,6 +12,8 @@ body,
 }
 
 body {
+  /* Phones draw the app edge to edge: keep clear of the status and nav bars. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-body);

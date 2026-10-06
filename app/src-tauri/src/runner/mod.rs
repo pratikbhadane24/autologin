@@ -16,7 +16,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::broker::manifest::{Availability, BrokerKind};
 use crate::broker::registry::ManifestBundle;
-use crate::browser::chromium::{ChromeSession, LaunchOptions};
+use crate::browser::{BrowserSession, LaunchOptions};
 use crate::logging::Redactor;
 use crate::store::accounts::{Account, Accounts, LoginResult};
 use crate::store::secrets::SecretStore;
@@ -181,7 +181,7 @@ fn plan(deps: &RunnerDeps, id: i64) -> Result<Account, String> {
     Ok(account)
 }
 
-async fn launch_if_needed(deps: &RunnerDeps, accounts: &[Account], options: &RunOptions) -> Option<Result<ChromeSession, String>> {
+async fn launch_if_needed(deps: &RunnerDeps, accounts: &[Account], options: &RunOptions) -> Option<Result<BrowserSession, String>> {
     let needs_browser = accounts
         .iter()
         .filter_map(|a| deps.bundle.get(&a.broker_id))
@@ -190,13 +190,13 @@ async fn launch_if_needed(deps: &RunnerDeps, accounts: &[Account], options: &Run
         return None;
     }
     let launch = LaunchOptions { headless: options.headless, executable: options.chrome_executable.clone() };
-    Some(ChromeSession::launch(&launch).await.map_err(|e| e.to_string()))
+    Some(BrowserSession::launch(&launch).await.map_err(|e| e.to_string()))
 }
 
 async fn run_account<E>(
     deps: &RunnerDeps,
     account: &Account,
-    browser: Option<&Result<ChromeSession, String>>,
+    browser: Option<&Result<BrowserSession, String>>,
     options: &RunOptions,
     cancel: &CancellationToken,
     emit: &E,

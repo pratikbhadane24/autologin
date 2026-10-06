@@ -3,7 +3,10 @@
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, State};
+#[cfg(desktop)]
+use tauri::Manager;
+use tauri::{AppHandle, State};
+#[cfg(desktop)]
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_opener::OpenerExt;
 
@@ -190,11 +193,16 @@ pub fn save_settings(app: AppHandle, state: State<'_, AppState>, settings: AppSe
         let conn = state.conn.lock().map_err(|_| CommandError::msg("database is busy"))?;
         settings::save(&conn, &settings).map_err(|e| CommandError::msg(e.to_string()))?
     };
-    let autostart = app.autolaunch();
-    let result = if saved.start_with_computer { autostart.enable() } else { autostart.disable() };
-    if let Err(error) = result {
-        tracing::warn!(%error, "could not change start-with-computer");
+    #[cfg(desktop)]
+    {
+        let autostart = app.autolaunch();
+        let result = if saved.start_with_computer { autostart.enable() } else { autostart.disable() };
+        if let Err(error) = result {
+            tracing::warn!(%error, "could not change start-with-computer");
+        }
     }
+    #[cfg(mobile)]
+    let _ = (&app, &saved);
     state.schedule_changed.notify_one();
     get_settings_view(state)
 }
@@ -350,6 +358,7 @@ pub fn open_folder(app: AppHandle, state: State<'_, AppState>, folder: Folder) -
 
 /// "Check for updates" button: installs right away if one is found.
 #[tauri::command]
+#[cfg(desktop)]
 pub async fn check_for_update(app: AppHandle) -> CmdResult<super::update_service::UpdateStatus> {
     if app.state::<AppState>().is_running() {
         return Err(CommandError::msg("Wait for the current login run to finish, then check again."));
@@ -357,10 +366,14 @@ pub async fn check_for_update(app: AppHandle) -> CmdResult<super::update_service
     super::update_service::check(&app, true).await.map_err(CommandError::msg)
 }
 
+/// Mobile apps are updated by installing the newer APK / from the store.
+#[tauri::command]
+#[cfg(mobile)]
+pub async fn check_for_update(_app: AppHandle) -> CmdResult<()> {
+    Err(CommandError::msg("Get the latest version from the AutoLogin download page."))
+}
+
 #[tauri::command]
 pub fn show_main_window(app: AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.set_focus();
-    }
+    super::show_main_window(&app);
 }

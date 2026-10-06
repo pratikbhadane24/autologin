@@ -14,7 +14,7 @@ use crate::broker::engine::{EngineError, Outcome, StepEngine};
 use crate::broker::http_flows::{self, FlowError};
 use crate::broker::manifest::{BrokerKind, BrokerManifest};
 use crate::broker::registry::ManifestBundle;
-use crate::browser::chromium::{ChromePage, ChromeSession};
+use crate::browser::{BrowserPage, BrowserSession};
 use crate::browser::DriverError;
 use crate::cirrus::{CirrusClient, CirrusError};
 use crate::logging::Redactor;
@@ -43,7 +43,7 @@ pub struct Attempt<'a> {
     pub values: &'a AccountValues,
     pub redactor: &'a Redactor,
     pub http: &'a reqwest::Client,
-    pub browser: Option<&'a ChromeSession>,
+    pub browser: Option<&'a BrowserSession>,
     /// Where to save a screenshot/HTML if the browser flow fails.
     pub failure_stem: PathBuf,
 }
@@ -139,7 +139,7 @@ impl Attempt<'_> {
         )))
     }
 
-    async fn save_failure(&self, page: &ChromePage) {
+    async fn save_failure(&self, page: &BrowserPage) {
         let png = self.failure_stem.with_extension("png");
         let html = self.failure_stem.with_extension("html");
         if let Some(dir) = png.parent() {

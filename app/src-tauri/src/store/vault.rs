@@ -15,8 +15,11 @@ use chacha20poly1305::{XChaCha20Poly1305, XNonce};
 use rusqlite::{params, Connection, OptionalExtension};
 use zeroize::Zeroizing;
 
-use super::secrets::{AccountKey, SecretError, SecretStore, Secrets, KEYCHAIN_SERVICE};
+use super::secrets::{AccountKey, SecretError, SecretStore, Secrets};
+#[cfg(not(target_os = "android"))]
+use super::secrets::KEYCHAIN_SERVICE;
 
+#[cfg(not(target_os = "android"))]
 const MASTER_KEY_ENTRY: &str = "vault-key";
 const KEY_LEN: usize = 32;
 const NONCE_LEN: usize = 24;
@@ -29,9 +32,11 @@ pub trait MasterKey: Send + Sync {
 }
 
 /// The master key as a single OS keychain item (hex encoded).
+#[cfg(not(target_os = "android"))]
 #[derive(Debug, Default)]
 pub struct KeychainMasterKey;
 
+#[cfg(not(target_os = "android"))]
 impl MasterKey for KeychainMasterKey {
     fn get_or_create(&self) -> Result<MasterKeyBytes, SecretError> {
         let keychain_error = |e: keyring::Error| SecretError::Keychain(e.to_string());
@@ -47,6 +52,46 @@ impl MasterKey for KeychainMasterKey {
             Err(error) => Err(keychain_error(error)),
         }
     }
+}
+
+/// The master key in a file only this app can read. Used on Android until a
+/// Keystore-backed implementation replaces it.
+#[derive(Debug)]
+pub struct FileMasterKey {
+    path: std::path::PathBuf,
+}
+
+impl FileMasterKey {
+    pub fn new(path: std::path::PathBuf) -> Self {
+        Self { path }
+    }
+}
+
+impl MasterKey for FileMasterKey {
+    fn get_or_create(&self) -> Result<MasterKeyBytes, SecretError> {
+        let storage = |e: std::io::Error| SecretError::Storage(e.to_string());
+        match std::fs::read_to_string(&self.path) {
+            Ok(hex_key) => decode_key(&Zeroizing::new(hex_key)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                let key = random_key();
+                write_private(&self.path, &hex::encode(key.as_ref())).map_err(storage)?;
+                Ok(key)
+            }
+            Err(error) => Err(storage(error)),
+        }
+    }
+}
+
+fn write_private(path: &std::path::Path, text: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)?.write_all(text.as_bytes())
 }
 
 fn decode_key(hex_key: &str) -> Result<MasterKeyBytes, SecretError> {
@@ -170,6 +215,20 @@ mod tests {
 
     fn secrets() -> Secrets {
         [("password".to_string(), "pw-SECRET".to_string())].into()
+    }
+
+    #[test]
+    fn file_master_key_is_created_once_and_reused() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vault.key");
+        let first = FileMasterKey::new(path.clone()).get_or_create().unwrap();
+        let second = FileMasterKey::new(path.clone()).get_or_create().unwrap();
+        assert_eq!(first.as_ref(), second.as_ref());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+        }
     }
 
     #[test]

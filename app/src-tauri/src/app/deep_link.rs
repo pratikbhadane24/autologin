@@ -55,7 +55,7 @@ pub fn handle(app: &AppHandle, urls: Vec<Url>) {
             tracing::warn!(scheme = url.scheme(), "ignored unrecognised app link");
             continue;
         };
-        super::tray::show(app);
+        super::show_main_window(app);
         if let LinkAction::Import(text) = action {
             tracing::info!("accounts received from Cirrus via app link");
             if let Ok(mut pending) = app.state::<AppState>().pending_import.lock() {

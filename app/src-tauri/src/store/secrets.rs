@@ -8,6 +8,7 @@ use std::sync::Mutex;
 
 use rusqlite::Connection;
 use thiserror::Error;
+#[cfg(not(target_os = "android"))]
 use zeroize::Zeroizing;
 
 pub const KEYCHAIN_SERVICE: &str = "trade.autologin.autologin";
@@ -60,15 +61,18 @@ pub trait SecretStore: Send + Sync {
 
 /// One keychain item per account holding a JSON object, so the OS asks for
 /// access once per account rather than once per field.
+#[cfg(not(target_os = "android"))]
 #[derive(Debug, Default)]
 pub struct KeyringStore;
 
+#[cfg(not(target_os = "android"))]
 impl KeyringStore {
     fn entry(key: &AccountKey) -> Result<keyring::Entry, SecretError> {
         keyring::Entry::new(KEYCHAIN_SERVICE, &key.entry_name()).map_err(|e| SecretError::Keychain(e.to_string()))
     }
 }
 
+#[cfg(not(target_os = "android"))]
 impl SecretStore for KeyringStore {
     fn load(&self, _conn: &Connection, key: &AccountKey) -> Result<Secrets, SecretError> {
         match Self::entry(key)?.get_password() {

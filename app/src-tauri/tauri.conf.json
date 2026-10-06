@@ -53,7 +53,15 @@
         "schemes": [
           "autologin"
         ]
-      }
+      },
+      "mobile": [
+        {
+          "scheme": [
+            "autologin"
+          ],
+          "appLink": false
+        }
+      ]
     }
   }
 }

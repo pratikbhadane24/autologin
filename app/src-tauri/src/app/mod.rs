@@ -8,7 +8,9 @@ pub mod run_control;
 pub mod schedule_service;
 pub mod settings;
 pub mod state;
+#[cfg(desktop)]
 pub mod tray;
+#[cfg(desktop)]
 pub mod update_service;
 pub mod views;
 
@@ -17,11 +19,17 @@ use std::sync::{Arc, Mutex};
 use tauri::{App, Manager};
 use tokio::sync::Notify;
 
+#[cfg(desktop)]
 use crate::broker::registry::ManifestBundle;
+#[cfg(desktop)]
 use crate::store::accounts::Accounts;
 use crate::store::secrets::SecretStore;
-use crate::store::vault::{KeychainMasterKey, VaultStore};
-use crate::{logging, migrate_v1, store};
+#[cfg(not(target_os = "android"))]
+use crate::store::vault::KeychainMasterKey;
+use crate::store::vault::VaultStore;
+#[cfg(desktop)]
+use crate::migrate_v1;
+use crate::{logging, store};
 use state::AppState;
 
 /// Keeps the log writer alive for the app's lifetime.
@@ -49,9 +57,13 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         tracing::warn!("development: secrets kept in memory only");
         Arc::new(crate::store::secrets::MemoryStore::default())
     } else {
-        Arc::new(VaultStore::new(Box::new(KeychainMasterKey)))
+        Arc::new(VaultStore::new(master_key(&data_dir)))
     };
+    // AutoLogin 1.x only ever ran on desktop.
+    #[cfg(desktop)]
     let migration = migrate_from_v1(&conn, secrets.as_ref(), &bundle);
+    #[cfg(mobile)]
+    let migration = None;
 
     // Unlock the vault now, so any OS permission prompt (first run, or after
     // an update) appears at launch rather than during the scheduled login.
@@ -74,19 +86,22 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         schedule_changed: Notify::new(),
         app_version: version,
     });
-    tray::create(app)?;
     register_app_links(app);
-    // Windows: remove the AutoLogin 1.x program (its data is migrated above).
-    // Runs every launch; it's a quick registry check once v1 is gone.
-    std::thread::spawn(|| {
-        let removed = crate::v1_uninstall::remove_v1();
-        if !removed.is_empty() {
-            tracing::info!(count = removed.len(), "AutoLogin 1.x uninstalled");
-        }
-    });
+    #[cfg(desktop)]
+    {
+        tray::create(app)?;
+        // Windows: remove the AutoLogin 1.x program (its data is migrated
+        // above). Runs every launch; a quick registry check once v1 is gone.
+        std::thread::spawn(|| {
+            let removed = crate::v1_uninstall::remove_v1();
+            if !removed.is_empty() {
+                tracing::info!(count = removed.len(), "AutoLogin 1.x uninstalled");
+            }
+        });
+        update_service::spawn(app.handle().clone());
+    }
     schedule_service::spawn(app.handle().clone());
     manifest_service::spawn(app.handle().clone());
-    update_service::spawn(app.handle().clone());
     if dev.run_all_then_quit {
         let handle = app.handle().clone();
         tauri::async_runtime::spawn(async move {
@@ -101,6 +116,30 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Where the vault's master key lives on this platform.
+#[cfg(not(target_os = "android"))]
+fn master_key(_data_dir: &std::path::Path) -> Box<dyn crate::store::vault::MasterKey> {
+    Box::new(KeychainMasterKey)
+}
+
+/// Android: app-private file until the Keystore-backed plugin lands (the app
+/// sandbox keeps it from other apps; backups are disabled in the manifest).
+#[cfg(target_os = "android")]
+fn master_key(data_dir: &std::path::Path) -> Box<dyn crate::store::vault::MasterKey> {
+    Box::new(crate::store::vault::FileMasterKey::new(data_dir.join("vault.key")))
+}
+
+/// Bring the main window forward (tray, single-instance, app links).
+pub fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        #[cfg(desktop)]
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
+#[cfg(desktop)]
 fn migrate_from_v1(
     conn: &rusqlite::Connection,
     secrets: &dyn SecretStore,
