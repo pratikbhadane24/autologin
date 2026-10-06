@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { PrivacyScreen } from "./components/PrivacyScreen";
 import { WhatsNew } from "./components/WhatsNew";
 import { api } from "./lib/api";
+import { IS_MOBILE } from "./lib/platform";
 import { useAccounts, useRun } from "./lib/hooks";
 import type {
   AppInfo,
@@ -155,7 +156,7 @@ export default function App() {
       <main className="fatal">
         <h1>AutoLogin couldn't start</h1>
         <p>{loadError}</p>
-        <p className="muted">Restart the app. If this keeps happening, open the log folder from the tray menu and share the latest log.</p>
+        <p className="muted">Restart the app. If this keeps happening, share the latest log from {IS_MOBILE ? "the Activity log tab" : "the log folder in the tray menu"}.</p>
       </main>
     );
   }

@@ -56,7 +56,7 @@ value = "{totp}"
 text = "Account Saved!"
 
 [failure]
-text_any = ["Invalid username or password", "Invalid TOTP"]
+text_any = ["Invalid username or password", "Invalid TOTP", "Invalid `api_key`"]
 
 # The redirect URL is set in the user's own Kite Connect app, so match any
 # Cirrus host. Kite appends request_token (and account_id from redirect_params).

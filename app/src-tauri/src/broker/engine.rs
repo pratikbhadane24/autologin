@@ -379,7 +379,14 @@ const MAX_BROKER_MESSAGE_CHARS: usize = 200;
 fn failure_line(text: &str, phrases: &[String]) -> Option<String> {
     let phrase = phrases.iter().find(|p| text.contains(p.as_str()))?;
     let line = text.lines().find(|l| l.contains(phrase.as_str())).unwrap_or(phrase).trim();
-    Some(line.chars().take(MAX_BROKER_MESSAGE_CHARS).collect())
+    let message = json_error_message(line).unwrap_or_else(|| line.to_string());
+    Some(message.chars().take(MAX_BROKER_MESSAGE_CHARS).collect())
+}
+
+/// Brokers' APIs often answer with a JSON body; show just its message.
+fn json_error_message(line: &str) -> Option<String> {
+    let body: serde_json::Value = serde_json::from_str(line).ok()?;
+    body.get("message")?.as_str().map(str::to_string)
 }
 
 fn compile(pattern: &str) -> Result<Regex, EngineError> {

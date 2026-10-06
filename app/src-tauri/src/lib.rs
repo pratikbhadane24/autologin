@@ -22,7 +22,7 @@ use app::commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = desktop_plugins(tauri::Builder::default())
+    let builder = platform_plugins(tauri::Builder::default())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -83,7 +83,7 @@ pub fn run() {
 /// focuses the first; also forwards autologin:// links), self-update and
 /// start-with-computer.
 #[cfg(desktop)]
-fn desktop_plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
+fn platform_plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     // A separate development data folder runs as its own instance.
     let builder = if app::dev::options().data_dir.is_some() {
         builder
@@ -95,7 +95,8 @@ fn desktop_plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri:
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
 }
 
+/// On phones, the native WebView that broker logins run in.
 #[cfg(mobile)]
-fn desktop_plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
-    builder
+fn platform_plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
+    builder.plugin(browser::mobile::init())
 }

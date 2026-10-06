@@ -1,3 +1,4 @@
+import { DEVICE } from "../lib/platform";
 import type { Selection } from "../lib/types";
 
 interface Props {
@@ -17,7 +18,7 @@ export function RunControls({ running, selectedIds, failedCount, showBrowser, on
         <button className="button danger" onClick={onStop}>
           Stop logging in
         </button>
-        <span className="muted">Logging in… you can keep using your computer.</span>
+        <span className="muted">Logging in… you can keep using your {DEVICE}.</span>
       </div>
     );
   }

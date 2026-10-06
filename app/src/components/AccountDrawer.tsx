@@ -2,6 +2,7 @@ import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
+import { DEVICE } from "../lib/platform";
 import type { Account, Catalog, CommandError, FieldSpec, PastedAccount } from "../lib/types";
 import "./AccountDrawer.css";
 
@@ -88,7 +89,7 @@ export function AccountDrawer({ catalog, account, onClose, onSaved }: Props) {
 
   async function remove() {
     if (!account) return;
-    const confirmed = await ask(`Delete ${account.broker_name} ${account.client_id}? Its saved password, PIN and TOTP secret are removed from this computer.`, {
+    const confirmed = await ask(`Delete ${account.broker_name} ${account.client_id}? Its saved password, PIN and TOTP secret are removed from this ${DEVICE}.`, {
       title: "Delete account",
       kind: "warning",
       okLabel: "Delete account",

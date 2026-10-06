@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ExportDialog } from "../components/ExportDialog";
 import { ImportDialog } from "../components/ImportDialog";
 import { api } from "../lib/api";
+import { DEVICE, IS_MOBILE } from "../lib/platform";
 import type { AppInfo, AppSettings, CommandError, SettingsView as View, Weekday } from "../lib/types";
 import "./SettingsView.css";
 
@@ -59,12 +60,20 @@ export function SettingsView({ view, info, onSaved, onAccountsChanged, onShowPri
 
   return (
     <div className="settings">
-      {error && <p className="form-error" role="alert">{error}</p>}
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
 
       <section className="settings-section">
         <h2>Daily login</h2>
         <label className="toggle-row">
-          <input type="checkbox" checked={settings.schedule.enabled} onChange={(e) => setSchedule({ enabled: e.target.checked })} />
+          <input
+            type="checkbox"
+            checked={settings.schedule.enabled}
+            onChange={(e) => setSchedule({ enabled: e.target.checked })}
+          />
           Log in all accounts automatically every day
         </label>
         <div className="schedule-row" aria-disabled={!settings.schedule.enabled}>
@@ -100,7 +109,9 @@ export function SettingsView({ view, info, onSaved, onAccountsChanged, onShowPri
             </>
           )}
         </p>
-        {view.next_scheduled_run && <p className="muted">Next automatic login: {formatNextRun(view.next_scheduled_run)}.</p>}
+        {view.next_scheduled_run && (
+          <p className="muted">Next automatic login: {formatNextRun(view.next_scheduled_run)}.</p>
+        )}
         <label className="toggle-row">
           <input
             type="checkbox"
@@ -115,7 +126,11 @@ export function SettingsView({ view, info, onSaved, onAccountsChanged, onShowPri
             id="retry-failed"
             className="input"
             value={settings.schedule.retry_failed_after_minutes ?? ""}
-            onChange={(e) => setSchedule({ retry_failed_after_minutes: e.target.value ? Number(e.target.value) : null })}
+            onChange={(e) =>
+              setSchedule({
+                retry_failed_after_minutes: e.target.value ? Number(e.target.value) : null,
+              })
+            }
           >
             {RETRY_CHOICES.map((m) => (
               <option key={m ?? "off"} value={m ?? ""}>
@@ -124,14 +139,16 @@ export function SettingsView({ view, info, onSaved, onAccountsChanged, onShowPri
             ))}
           </select>
         </div>
-        <label className="toggle-row">
-          <input
-            type="checkbox"
-            checked={settings.start_with_computer}
-            onChange={(e) => update((s) => ({ ...s, start_with_computer: e.target.checked }))}
-          />
-          Start AutoLogin when I sign in to my computer (needed for automatic logins)
-        </label>
+        {!IS_MOBILE && (
+          <label className="toggle-row">
+            <input
+              type="checkbox"
+              checked={settings.start_with_computer}
+              onChange={(e) => update((s) => ({ ...s, start_with_computer: e.target.checked }))}
+            />
+            Start AutoLogin when I sign in to my computer (needed for automatic logins)
+          </label>
+        )}
       </section>
 
       <section className="settings-section">
@@ -146,14 +163,21 @@ export function SettingsView({ view, info, onSaved, onAccountsChanged, onShowPri
         </label>
         <div className="field narrow">
           <label htmlFor="retries">Extra attempts when a broker page doesn't load</label>
-          <select id="retries" className="input" value={settings.retries} onChange={(e) => update((s) => ({ ...s, retries: Number(e.target.value) }))}>
+          <select
+            id="retries"
+            className="input"
+            value={settings.retries}
+            onChange={(e) => update((s) => ({ ...s, retries: Number(e.target.value) }))}
+          >
             {[0, 1, 2, 3].map((n) => (
               <option key={n} value={n}>
                 {n === 0 ? "None" : n}
               </option>
             ))}
           </select>
-          <span className="hint">AutoLogin never retries after a broker rejects your password, so your account won't get locked.</span>
+          <span className="hint">
+            AutoLogin never retries after a broker rejects your password, so your account won't get locked.
+          </span>
         </div>
         <div className="field narrow">
           <label htmlFor="concurrency">Accounts to log in at the same time</label>
@@ -173,8 +197,8 @@ export function SettingsView({ view, info, onSaved, onAccountsChanged, onShowPri
       </section>
 
       <section className="settings-section">
-        <h2>Move to another computer</h2>
-        <p className="muted">Export your accounts here, then import the file in AutoLogin on the new computer.</p>
+        <h2>Move to another {DEVICE}</h2>
+        <p className="muted">Export your accounts here, then import the file in AutoLogin on the new {DEVICE}.</p>
         <div className="button-row">
           <button className="button" onClick={() => setDialog("export")}>
             Export accounts
@@ -185,35 +209,40 @@ export function SettingsView({ view, info, onSaved, onAccountsChanged, onShowPri
         </div>
       </section>
 
-      <section className="settings-section">
-        <h2>Updates</h2>
-        <label className="toggle-row">
-          <input
-            type="checkbox"
-            checked={settings.auto_update}
-            onChange={(e) => update((s) => ({ ...s, auto_update: e.target.checked }))}
-          />
-          Install updates automatically (never during a login or in the 30 minutes before your daily login)
-        </label>
-        <div className="button-row">
-          <button className="button" disabled={checking} onClick={checkUpdates}>
-            {checking ? "Checking…" : "Check for updates"}
-          </button>
-        </div>
-      </section>
+      {!IS_MOBILE && (
+        <section className="settings-section">
+          <h2>Updates</h2>
+          <label className="toggle-row">
+            <input
+              type="checkbox"
+              checked={settings.auto_update}
+              onChange={(e) => update((s) => ({ ...s, auto_update: e.target.checked }))}
+            />
+            Install updates automatically (never during a login or in the 30 minutes before your daily login)
+          </label>
+          <div className="button-row">
+            <button className="button" disabled={checking} onClick={checkUpdates}>
+              {checking ? "Checking…" : "Check for updates"}
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className="settings-section">
         <h2>About</h2>
         <p>
-          AutoLogin {info.version}, broker definitions version {info.manifest_version}. Free and open source, built by Cirrus.
+          AutoLogin {info.version}, broker definitions version {info.manifest_version}. Free and open source, built by
+          Cirrus.
         </p>
         <div className="button-row">
           <button className="button" onClick={onShowPrivacy}>
             How AutoLogin handles your data
           </button>
-          <button className="button" onClick={() => api.openFolder("data")}>
-            Open data folder
-          </button>
+          {!IS_MOBILE && (
+            <button className="button" onClick={() => api.openFolder("data")}>
+              Open data folder
+            </button>
+          )}
         </div>
       </section>
 
@@ -224,5 +253,9 @@ export function SettingsView({ view, info, onSaved, onAccountsChanged, onShowPri
 }
 
 export function formatNextRun(iso: string): string {
-  return new Date(iso).toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" });
+  return new Date(iso).toLocaleString([], {
+    weekday: "long",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }

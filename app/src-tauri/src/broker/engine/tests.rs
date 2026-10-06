@@ -391,3 +391,17 @@ async fn broker_error_stops_a_waiting_step_with_the_full_message() {
     );
     assert!(started.elapsed() < std::time::Duration::from_secs(1), "waited {:?}", started.elapsed());
 }
+
+#[test]
+fn failure_line_returns_the_matching_page_line() {
+    let phrases = vec!["Invalid TOTP".to_string()];
+    let text = "Kite\nInvalid TOTP. Try again.\nForgot?";
+    assert_eq!(failure_line(text, &phrases).as_deref(), Some("Invalid TOTP. Try again."));
+}
+
+#[test]
+fn failure_line_shows_only_the_message_of_a_json_error_body() {
+    let phrases = vec!["Invalid `api_key`".to_string()];
+    let text = r#"{"status":"error","message":"Invalid `api_key`.","data":null,"error_type":"InputException"}"#;
+    assert_eq!(failure_line(text, &phrases).as_deref(), Some("Invalid `api_key`."));
+}
