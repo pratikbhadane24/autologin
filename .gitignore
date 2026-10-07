@@ -9,3 +9,8 @@ Thumbs.db
 
 # Build output and dependencies are ignored in app/.gitignore and
 # app/src-tauri/.gitignore (node_modules, dist, target, gen/schemas).
+
+# Signing keys and passwords, local only (see .secrets/README.md). Only the
+# README is tracked; never `git add -f` anything else in there.
+/.secrets/*
+!/.secrets/README.md

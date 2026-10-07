@@ -34,6 +34,14 @@ git-cliff can't group commits by the paths they touch. Use the `brokers` scope f
 
 ## Secrets and variables
 
+Keep every signing key in the git-ignored `.secrets/` folder at the repository root ([`.secrets/README.md`](../.secrets/README.md) lists what goes there). Create the keys and upload them as GitHub secrets in one go, in your own terminal:
+
+```sh
+scripts/signing-keys.sh all            # or: android | updater | manifest
+```
+
+The script prompts for passwords, never overwrites an existing key, prints only public keys, and refuses to run if `.secrets/` isn't git-ignored. Pass `--no-upload` to only create the files. Back the files and passwords up to a password manager straight away.
+
 | Name | Kind | Required | Purpose |
 | --- | --- | --- | --- |
 | `TAURI_SIGNING_PRIVATE_KEY` | secret | yes, once the updater is enabled | Signs updater artifacts. Generate with `pnpm tauri signer generate`. |
@@ -65,12 +73,12 @@ gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object
 ### Manifest signing key
 
 ```sh
-node scripts/sign-manifest.mjs --keygen ~/.autologin-keys/manifest.key   # secret to file (0600), prints public key only
+scripts/signing-keys.sh manifest            # creates .secrets/manifest.key, uploads it, prints the public key
 node scripts/sign-manifest.mjs --self-test   # keygen -> sign real brokers dir -> verify -> tamper checks
 ```
 
-- Store the seed as the `MANIFEST_SIGNING_KEY` secret.
-- Add the public key to `TRUSTED_MANIFEST_KEYS` in `app/src-tauri/src/broker/remote.rs`, and set it as the `MANIFEST_PUBLIC_KEY` variable.
+- The script stores the seed as the `MANIFEST_SIGNING_KEY` secret and sets the `MANIFEST_PUBLIC_KEY` variable.
+- Add the public key to `TRUSTED_MANIFEST_KEYS` in `app/src-tauri/src/broker/remote.rs`.
 - Until the key is in `TRUSTED_MANIFEST_KEYS`, apps reject every remote manifest and run on their bundled copy.
 - To rotate the key, ship an app release that trusts both the old and new keys before you switch the secret.
 
@@ -83,24 +91,9 @@ node scripts/sign-manifest.mjs --verify <pubkeyhex> --out /tmp/m [--dir app/src-
 
 ### Android signing key
 
-Every AutoLogin APK must be signed with the same key forever. Android installs an update only when its signature matches the installed app. If the key is lost, users have to uninstall and reinstall, which deletes their saved accounts unless they exported a backup first. Keep the keystore file and its password in a password manager, outside the repository.
+Every AutoLogin APK must be signed with the same key forever. Android installs an update only when its signature matches the installed app. If the key is lost, users have to uninstall and reinstall, which deletes their saved accounts unless they exported a backup first. Keep a copy of the keystore file and its password in a password manager, not only in `.secrets/`.
 
-Create it once, in your own terminal:
-
-```sh
-keytool -genkeypair -v -keystore ~/.autologin-keys/autologin-release.jks \
-  -alias autologin -keyalg RSA -keysize 4096 -validity 10000 \
-  -dname "CN=AutoLogin, O=Quartgen Solutions Private Limited, C=IN"
-```
-
-`keytool` asks for the keystore and key passwords. Then add the four secrets:
-
-```sh
-base64 -i ~/.autologin-keys/autologin-release.jks | gh secret set ANDROID_KEYSTORE_BASE64
-gh secret set ANDROID_KEYSTORE_PASSWORD   # prompts; paste the keystore password
-gh secret set ANDROID_KEY_ALIAS --body autologin
-gh secret set ANDROID_KEY_PASSWORD        # prompts; paste the key password
-```
+Create it once with `scripts/signing-keys.sh android`. It writes `.secrets/android-release.jks` (RSA 4096, alias `autologin`, one password for store and key) and uploads the four `ANDROID_*` secrets.
 
 To build a signed APK locally, set `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`, then run `pnpm tauri android build --apk` in `app/`. Without them the release APK is unsigned and can't be installed.
 
