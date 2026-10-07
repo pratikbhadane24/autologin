@@ -12,6 +12,13 @@ them here with owner-only permissions and uploads them as GitHub secrets.
 
 | `paste.key` | "Send to AutoLogin" / "Copy for AutoLogin" from Cirrus | none: set `AUTOLOGIN_SIGNING_KEY` (+ `AUTOLOGIN_SIGNING_KEY_ID`) on the broker-auth backend | `TRUSTED_PASTE_KEYS` in `app/src-tauri/src/paste.rs` |
 
+| `apple-developer-id.key` (+ `.csr`, `.cer`, `.p12`) | macOS app (Developer ID + notarization) | `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_TEAM_ID`, `APPLE_ID`, `APPLE_PASSWORD` | (none; Apple issues the certificate) |
+
+macOS signing takes two runs: `scripts/signing-keys.sh apple-csr` makes the
+private key and a request to upload to Apple (Developer ID Application); save
+Apple's certificate as `.secrets/apple-developer-id.cer`, then run
+`scripts/signing-keys.sh apple`.
+
 Create the paste key with `scripts/signing-keys.sh paste`. It is never
 uploaded to GitHub; its private half goes only into the Cirrus backend's
 environment.

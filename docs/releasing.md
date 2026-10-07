@@ -74,7 +74,9 @@ The script prompts for passwords, never overwrites an existing key, prints only 
 | `APPLE_ID`, `APPLE_PASSWORD` (app-specific password), `APPLE_TEAM_ID` | secret | optional | Notarization. Used only together with the certificate. |
 | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | secret | for an APK | Signs the Android APK. See [Android signing key](#android-signing-key). |
 
-Set all six Apple secrets or none of them. If `APPLE_CERTIFICATE` is set and any of the others is missing, the workflow fails. With none set, the macOS build is ad-hoc signed (`APPLE_SIGNING_IDENTITY=-`), and users have to right-click → Open the first time, as with v1.
+Create them with `scripts/signing-keys.sh apple-csr` (key and certificate request in `.secrets/`), upload the request at developer.apple.com as a **Developer ID Application** certificate (Account Holder only), save the certificate as `.secrets/apple-developer-id.cer`, then run `scripts/signing-keys.sh apple`. It builds the `.p12` with Apple's intermediate certificate and uploads all six secrets.
+
+Set all six Apple secrets or none of them. If `APPLE_CERTIFICATE` is set and any of the others is missing, the workflow fails. With none set, the macOS build is ad-hoc signed (`APPLE_SIGNING_IDENTITY=-`), and users have to allow it once in System Settings → Privacy & Security → Open Anyway (recent macOS no longer offers right-click → Open).
 
 Each secret reaches only the step that uses it. `TAURI_SIGNING_*` and `APPLE_*` go only to the tauri-action build step, `ANDROID_*` only to the APK build step (the keystore is written to the runner's temp folder and deleted afterwards), and `MANIFEST_SIGNING_KEY` goes only to the sign step. Workflows default to `contents: read`, and `contents: write` is granted only to the jobs that create the release or upload to it.
 

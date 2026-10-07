@@ -166,7 +166,7 @@ fn apply_one(accounts: &Accounts<'_>, bundle: &ManifestBundle, entry: &BackupAcc
         Some(existing) => (accounts.update(existing.id, &input, Completeness::AllowMissingSecrets)?, false),
         None => (accounts.create(&input, Completeness::AllowMissingSecrets)?, true),
     };
-    let needs_setup = !super::validate::missing_secrets(broker, &account.secret_keys).is_empty();
+    let needs_setup = !super::validate::missing_fields(broker, &account.fields, &account.secret_keys).is_empty();
     Ok((created, needs_setup))
 }
 

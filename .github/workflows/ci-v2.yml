@@ -154,7 +154,7 @@ jobs:
         working-directory: app/src-tauri
         env:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}
-        run: cargo test --test chrome_engine --test chrome_runner --test chrome_dhan -- --ignored
+        run: cargo test --test chrome_engine --test chrome_runner --test chrome_dhan --test chrome_fivepaisa -- --ignored
 
   android:
     name: Android lint (Rust)

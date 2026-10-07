@@ -173,7 +173,7 @@ fn plan(deps: &RunnerDeps, id: i64) -> Result<Account, String> {
     if !deps.bundle.has_tenant(&account.tenant_id) {
         return Err("Unknown Cirrus workspace.".into());
     }
-    let missing = validate::missing_secrets(manifest, &account.secret_keys);
+    let missing = validate::missing_fields(manifest, &account.fields, &account.secret_keys);
     if !missing.is_empty() {
         let labels: Vec<&str> = missing.iter().filter_map(|k| manifest.field(k)).map(|f| f.label.as_str()).collect();
         return Err(format!("Needs setup: add {}.", labels.join(", ")));

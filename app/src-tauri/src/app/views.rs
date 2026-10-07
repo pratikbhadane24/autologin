@@ -76,7 +76,7 @@ pub fn account_view(account: Account, bundle: &ManifestBundle) -> AccountView {
     let manifest = bundle.get(&account.broker_id);
     let missing = manifest
         .map(|m| {
-            validate::missing_secrets(m, &account.secret_keys)
+            validate::missing_fields(m, &account.fields, &account.secret_keys)
                 .iter()
                 .filter_map(|k| m.field(k).map(|f| f.label.clone()))
                 .collect()

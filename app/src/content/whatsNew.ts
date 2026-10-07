@@ -23,7 +23,7 @@ export const RELEASES: Release[] = [
         mobile:
           "Schedule a daily login — 8:45 AM is recommended. A notification starts it with one tap, or AutoLogin can log in by itself.",
       },
-      "Dhan accounts log in too.",
+      "Dhan and 5Paisa accounts log in too.",
       "Add accounts by sending them from Cirrus, or by pasting.",
       "Move to a new computer or phone with a password-protected backup.",
       "A screenshot is saved when a login fails, so you can see what went wrong.",
