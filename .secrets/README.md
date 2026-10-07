@@ -10,8 +10,11 @@ them here with owner-only permissions and uploads them as GitHub secrets.
 | `updater.key` (+ `updater.key.pub`) | Desktop auto-updates | `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | `plugins.updater.pubkey` in `app/src-tauri/tauri.conf.json` |
 | `manifest.key` | Broker manifest updates | `MANIFEST_SIGNING_KEY` | `TRUSTED_MANIFEST_KEYS` in `app/src-tauri/src/broker/remote.rs`, and the `MANIFEST_PUBLIC_KEY` repository variable |
 
-The Cirrus paste-signing key belongs to the broker-auth backend
-(`AUTOLOGIN_SIGNING_KEY`), not to this repository.
+| `paste.key` | "Send to AutoLogin" / "Copy for AutoLogin" from Cirrus | none: set `AUTOLOGIN_SIGNING_KEY` (+ `AUTOLOGIN_SIGNING_KEY_ID`) on the broker-auth backend | `TRUSTED_PASTE_KEYS` in `app/src-tauri/src/paste.rs` |
+
+Create the paste key with `scripts/signing-keys.sh paste`. It is never
+uploaded to GitHub; its private half goes only into the Cirrus backend's
+environment.
 
 Rules:
 
