@@ -1,6 +1,7 @@
 //! Full browser path through the runner with real Chrome: fixture broker →
 //! intercepted callback → Cirrus API (mock) → account saved as logged in.
 //! `cargo test --test chrome_runner -- --ignored`
+#![cfg(desktop)] // drives desktop Chrome; nothing to run on phones
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};

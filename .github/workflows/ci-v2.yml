@@ -155,3 +155,53 @@ jobs:
         env:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}
         run: cargo test --test chrome_engine --test chrome_runner --test chrome_dhan -- --ignored
+
+  android:
+    name: Android lint (Rust)
+    runs-on: ubuntu-latest
+    # Desktop CI doesn't compile the phone-only code (cfg(mobile), Android
+    # Keystore, WebView driver), so an Android-only break would otherwise
+    # surface only in the release workflow. Clippy for the Android target is
+    # quick and needs only the NDK the runner image already ships.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable branch
+        with:
+          toolchain: stable
+          components: clippy
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: app/src-tauri -> target
+          key: android
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      # generate_context! needs app/dist at compile time.
+      - name: Build frontend
+        working-directory: app
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec vite build
+
+      - name: Clippy (aarch64-linux-android)
+        working-directory: app/src-tauri
+        run: |
+          set -euo pipefail
+          tc="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export CC_aarch64_linux_android="$tc/aarch64-linux-android24-clang"
+          export AR_aarch64_linux_android="$tc/llvm-ar"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$tc/aarch64-linux-android24-clang"
+          cargo clippy --target aarch64-linux-android --all-targets -- -D warnings

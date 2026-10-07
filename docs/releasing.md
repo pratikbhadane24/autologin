@@ -32,6 +32,28 @@ Commit groups in the notes:
 
 git-cliff can't group commits by the paths they touch. Use the `brokers` scope for every change under `app/src-tauri/brokers/`.
 
+## First beta checklist (v2.0.0-beta.1)
+
+A pre-release tag (`v2.0.0-beta.1`) builds everything but stays invisible to installed apps and to the v1 updater, which only read `releases/latest`. That makes it the safe place to test.
+
+Before tagging:
+
+- [ ] Signing keys created and uploaded: `scripts/signing-keys.sh all` (Android, updater, manifest).
+- [ ] Public keys in the app: `plugins.updater.pubkey` in `app/src-tauri/tauri.conf.json`, and the manifest key in `TRUSTED_MANIFEST_KEYS` (`app/src-tauri/src/broker/remote.rs`). Commit both.
+- [ ] Apple secrets set if the macOS build should be signed and notarized (optional for a beta).
+- [ ] Cirrus side live: broker-auth-backend (signed export, Dhan consent; `TRUSTED_PROXY_HOPS` set) and app-cirrus ("Send to AutoLogin", `/autologin`).
+- [ ] CI green on `v2`, including the Android lint job.
+
+After the draft is built, before publishing it as a pre-release:
+
+- [ ] Windows: install v1.0.24, add a test account, then install the beta's NSIS installer. Check the accounts migrated, v1 was removed, and What's New showed.
+- [ ] macOS (`.dmg`) and Linux (AppImage): install, add an account, run one login, check one keychain prompt at most.
+- [ ] Android APK: install, add an account, log in once (shown and hidden), then install the same APK again over it and check the accounts stayed.
+- [ ] Send to AutoLogin from Cirrus opens the installed app (`autologin://`) on each platform.
+- [ ] Live logins for each broker you can test (Pocketful, Zerodha, Upstox, Motilal Oswal, Dhan).
+- [ ] Schedule a run two minutes ahead on desktop and on the phone (both phone modes).
+- [ ] Self-update: publish `v2.0.0-beta.2` later and check a `beta.1` desktop install updates itself.
+
 ## Secrets and variables
 
 Keep every signing key in the git-ignored `.secrets/` folder at the repository root ([`.secrets/README.md`](../.secrets/README.md) lists what goes there). Create the keys and upload them as GitHub secrets in one go, in your own terminal:

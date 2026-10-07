@@ -1,5 +1,6 @@
 //! Drives real Chrome against local fixture pages that mimic a broker login.
 //! Needs Chrome or Edge installed: `cargo test --test chrome_engine -- --ignored`.
+#![cfg(desktop)] // drives desktop Chrome; nothing to run on phones
 
 use std::collections::HashMap;
 

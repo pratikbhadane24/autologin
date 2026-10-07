@@ -155,6 +155,7 @@ mod tests {
 
     /// Touches the real OS keychain; run manually.
     #[test]
+    #[cfg(not(target_os = "android"))]
     #[ignore = "uses the real OS keychain"]
     fn keyring_store_round_trips() {
         let conn = Connection::open_in_memory().unwrap();

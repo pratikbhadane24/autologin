@@ -2,6 +2,7 @@
 //! imitation of Dhan's consent login: mobile number, then six TOTP boxes that
 //! Dhan swaps for six fresh PIN boxes using the same widget.
 //! Needs Chrome or Edge: `cargo test --test chrome_dhan -- --ignored`.
+#![cfg(desktop)] // drives desktop Chrome; nothing to run on phones
 
 use std::collections::HashMap;
 

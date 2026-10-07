@@ -16,13 +16,15 @@ export const RELEASES: Release[] = [
         desktop:
           "Passwords, PINs and TOTP secrets are now encrypted, with the key kept in your computer's keychain, instead of sitting in a plain file.",
         mobile:
-          "Passwords, PINs and TOTP secrets are encrypted, with the key kept in AutoLogin's private storage on this phone.",
+          "Passwords, PINs and TOTP secrets are encrypted, with the key protected by this phone's Android Keystore.",
       },
       {
         desktop: "Schedule a daily login — 8:45 AM is recommended — and AutoLogin runs from the tray.",
-        mobile: null,
+        mobile:
+          "Schedule a daily login — 8:45 AM is recommended. A notification starts it with one tap, or AutoLogin can log in by itself.",
       },
-      "Add accounts by pasting from the Cirrus dashboard.",
+      "Dhan accounts log in too.",
+      "Add accounts by sending them from Cirrus, or by pasting.",
       "Move to a new computer or phone with a password-protected backup.",
       "A screenshot is saved when a login fails, so you can see what went wrong.",
       {
