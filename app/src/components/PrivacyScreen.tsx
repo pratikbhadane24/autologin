@@ -29,9 +29,17 @@ export function PrivacyScreen({ firstRun, onDone }: Props) {
             <h2>Where your details are kept</h2>
             <p>
               Passwords, PINs and TOTP secrets are encrypted on this {DEVICE} with a key held in{" "}
-              {IS_MOBILE ? "AutoLogin's private storage, which other apps can't read" : "your system keychain"}. They
+              {IS_MOBILE ? "the Android Keystore, which can't be copied off the phone" : "your system keychain"}. They
               are sent only to your broker's official login page, never to Cirrus, and AutoLogin has no server of its
               own.
+            </p>
+          </section>
+          <section>
+            <h2>Why not store them on Cirrus?</h2>
+            <p>
+              To log in for you every morning, a server would have to unlock your passwords each day, so its key would
+              sit right next to them. However well they were encrypted, one breach could expose everyone's broker
+              logins. Keeping them on your own {DEVICE} means there is no central store of credentials to steal.
             </p>
           </section>
           <section>
