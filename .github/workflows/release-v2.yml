@@ -254,7 +254,7 @@ jobs:
           projectPath: app
           tauriScript: pnpm tauri
           releaseId: ${{ needs.release.outputs.release_id }}
-          includeUpdaterJson: true
+          uploadUpdaterJson: true
           # Updater artifacts (signed with TAURI_SIGNING_PRIVATE_KEY) only in CI, so
           # local `tauri build` works without the key.
           args: ${{ needs.prepare.outputs.prerelease == 'true' && matrix.prerelease_args || matrix.args }} --config src-tauri/tauri.release.conf.json
@@ -276,7 +276,7 @@ jobs:
           projectPath: app
           tauriScript: pnpm tauri
           releaseId: ${{ needs.release.outputs.release_id }}
-          includeUpdaterJson: true
+          uploadUpdaterJson: true
           args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
 
   android:
