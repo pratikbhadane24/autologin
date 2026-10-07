@@ -25,10 +25,13 @@ use thiserror::Error;
 use super::registry::{ManifestBundle, RegistryError};
 
 /// Hex-encoded ed25519 public keys allowed to sign broker manifests.
-/// The private key lives only in the release CI secrets. Empty until the
-/// first key is generated; until then every remote manifest is rejected and
-/// the app runs with its bundled manifests.
-pub const TRUSTED_MANIFEST_KEYS: &[&str] = &[];
+/// The private key lives only in the release CI secrets (and the maintainer's
+/// .secrets/manifest.key). To rotate, add the new key here in a release
+/// before switching the secret (docs/releasing.md).
+pub const TRUSTED_MANIFEST_KEYS: &[&str] = &[
+    // Created 2026-10-07.
+    "8c67f0d320a5ba624de7095c650d44868774085c95c06a83f655265c48034cad",
+];
 
 /// Latest release's manifest. The signature is at the same URL plus `.sig`.
 pub const DEFAULT_MANIFEST_URL: &str =

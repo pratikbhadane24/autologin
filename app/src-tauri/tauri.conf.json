@@ -40,7 +40,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDAwQUVFQkQ0REUxNkFGMDkKUldRSnJ4YmUxT3V1QUpBUGFmMU4zcmhEclMvaUt4a0V6V29aVE91M3crWndTaDBoNitXS1IrV08K",
       "endpoints": [
         "https://github.com/pratikbhadane24/autologin/releases/latest/download/latest.json"
       ],
