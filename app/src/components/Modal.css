@@ -1,0 +1,85 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(16 22 31 / 35%);
+  display: grid;
+  place-items: center;
+  z-index: 30;
+  padding: var(--space-4);
+}
+
+.modal {
+  width: min(520px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-4);
+}
+.modal h2 {
+  font-size: var(--step-2);
+}
+.modal-body {
+  display: grid;
+  gap: var(--space-3);
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+.choice:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.choice input {
+  grid-row: span 2;
+  margin-top: 4px;
+}
+.choice strong {
+  font-weight: 600;
+}
+.choice span {
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+}
+
+.warning {
+  color: var(--warn);
+  background: var(--warn-soft);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+}
+
+/* Phones (keep in step with PHONE_QUERY in lib/useMediaQuery.ts). */
+@media (max-width: 640px) {
+  .modal-backdrop {
+    padding: var(--space-3);
+  }
+  .modal {
+    padding: var(--space-4);
+    gap: var(--space-3);
+  }
+  .modal-footer {
+    flex-wrap: wrap;
+  }
+  .modal-footer .button {
+    flex: 1 1 auto;
+  }
+  .choice {
+    min-height: var(--touch-target);
+  }
+}

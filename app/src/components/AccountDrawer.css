@@ -1,0 +1,93 @@
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(16 22 31 / 35%);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 20;
+}
+
+.drawer {
+  width: min(460px, 100%);
+  height: 100%;
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  animation: drawer-in 180ms ease-out;
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+.drawer-header,
+.drawer-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+}
+.drawer-header {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+}
+.drawer-header h2 {
+  font-size: var(--step-2);
+}
+.drawer-footer {
+  border-top: 1px solid var(--line);
+}
+.drawer-footer .spacer {
+  flex: 1;
+}
+
+.drawer-body {
+  overflow-y: auto;
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+}
+
+.paste-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--primary-soft);
+  border-radius: var(--radius-control);
+}
+
+/* Phones (keep in step with PHONE_QUERY in lib/useMediaQuery.ts): the drawer
+   fills the screen; the native side already pads for the system bars. */
+@media (max-width: 640px) {
+  .drawer-header,
+  .drawer-footer {
+    padding: var(--space-2) var(--space-4);
+  }
+  .drawer-header {
+    padding-right: var(--space-2);
+  }
+  .drawer-footer {
+    flex-wrap: wrap;
+    padding-block: var(--space-3);
+  }
+  .drawer-footer .button {
+    flex: 1 1 auto;
+  }
+  .drawer-footer .spacer {
+    display: none;
+  }
+  .drawer-body {
+    padding: var(--space-4);
+  }
+  .paste-box {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

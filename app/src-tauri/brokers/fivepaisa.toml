@@ -1,0 +1,73 @@
+id = "fivepaisa"
+name = "5Paisa"
+kind = "browser"
+# Moving to the user's own 5Paisa API app; fields and URLs to be confirmed.
+availability = "coming_soon"
+aliases = ["5paisa", "fivepaisa", "5 paisa"]
+
+[[fields]]
+key = "client_id"
+label = "Client ID"
+from_cirrus = true
+
+[[fields]]
+key = "mpin"
+label = "PIN"
+secret = true
+pattern = "^\\d{4,6}$"
+
+[[fields]]
+key = "totp_key"
+label = "TOTP Secret"
+secret = true
+totp = true
+
+[consts]
+# Same host the Cirrus backend uses for its 5Paisa vendor login.
+login_base = "https://dev-openapi.5paisa.com"
+vendor_key = "TcH8gqNZb0MknbgYJrtPRMOvztGruOc8"
+
+[session]
+reset = "05:00"
+tz = "Asia/Kolkata"
+
+[[steps]]
+action = "goto"
+url = "{consts.login_base}/WebVendorLogin/VLogin/Index?VendorKey={consts.vendor_key}&ResponseURL={tenant.cirrus_app}/add-broker-account/5paisa&State={url:client_id}"
+
+# Selectors keep v1's XPaths as the last fallback until stable CSS is
+# confirmed against the live page. fill_split targets all N boxes at once.
+[[steps]]
+action = "type"
+sel = ["xpath=/html/body/section/div/div/div[2]/div/div[1]/div[1]/input"]
+value = "{client_id}"
+
+[[steps]]
+action = "click"
+sel = ["xpath=/html/body/section/div/div/div[2]/div/div[1]/button"]
+
+[[steps]]
+action = "fill_split"
+sel = ["xpath=/html/body/section/div/div/div[2]/div/div[2]/div[1]/div/div/input"]
+value = "{totp}"
+
+[[steps]]
+action = "click"
+sel = ["xpath=/html/body/section/div/div/div[2]/div/div[2]/button"]
+
+[[steps]]
+action = "fill_split"
+sel = ["xpath=/html/body/section/div/div/div[2]/div/div[5]/div[1]/div[1]/div/input"]
+value = "{mpin}"
+
+[[steps]]
+action = "click"
+sel = ["xpath=/html/body/section/div/div/div[2]/div/div[5]/div[2]/div[2]/button[2]"]
+
+[success]
+text = "Account Saved!"
+
+[callback]
+url_matches = "{tenant.callback_hosts}/add-broker-account/5paisa"
+endpoint = "/api/sessions/fivepaisa/complete-login"
+body = { request_token = "{query.RequestToken}" }

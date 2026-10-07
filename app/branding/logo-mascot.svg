@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-170 -160 340 310" width="1024" height="934">
+  <title>AutoLogin mascot</title>
+  <defs>
+    <linearGradient id="unusedTile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E3E9F2"/>
+    </linearGradient>
+    <radialGradient id="deep" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#2F6BEF"/>
+      <stop offset="1" stop-color="#1A3FB0"/>
+    </radialGradient>
+    <linearGradient id="royal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4A82F5"/>
+      <stop offset="1" stop-color="#2F6BEF"/>
+    </linearGradient>
+    <linearGradient id="peri" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#A9C1F7"/>
+      <stop offset="1" stop-color="#7FA2F0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#5FF2F2" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#5FF2F2" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cloudShade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E4ECFA"/>
+    </linearGradient>
+    <!-- Orb drawn at origin, radius 100. Nested offset circles form the swirl bands. -->
+    <g id="orb">
+      <circle cx="0" cy="0" r="100" fill="url(#deep)"/>
+      <circle cx="8" cy="-8" r="88" fill="url(#peri)"/>
+      <circle cx="-1" cy="-17" r="75" fill="url(#royal)"/>
+      <circle cx="-9" cy="-9" r="63" fill="url(#deep)"/>
+      <circle cx="-2" cy="-2" r="53" fill="url(#royal)"/>
+      <ellipse cx="-44" cy="-58" rx="22" ry="10" transform="rotate(-38 -44 -58)" fill="#FFFFFF" opacity="0.5"/>
+    </g>
+    <g id="face">
+      <g fill="url(#cloudShade)">
+        <circle cx="-40" cy="16" r="20"/>
+        <circle cx="-16" cy="-4" r="28"/>
+        <circle cx="16" cy="-8" r="30"/>
+        <circle cx="40" cy="12" r="22"/>
+        <rect x="-58" y="10" width="116" height="40" rx="20"/>
+      </g>
+      <rect x="-40" y="6" width="80" height="36" rx="18" fill="#1B2A5C"/>
+      <circle cx="-15" cy="22" r="11" fill="url(#glow)"/>
+      <circle cx="15" cy="22" r="11" fill="url(#glow)"/>
+      <circle cx="-15" cy="22" r="5.5" fill="#5FF2F2"/>
+      <circle cx="15" cy="22" r="5.5" fill="#5FF2F2"/>
+      <path d="M -7 32 Q 0 37 7 32" fill="none" stroke="#5FF2F2" stroke-width="3" stroke-linecap="round"/>
+    </g>
+  </defs>
+  <defs>
+    <linearGradient id="limb" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4A82F5"/>
+      <stop offset="1" stop-color="#1E4FD8"/>
+    </linearGradient>
+    <radialGradient id="ball" cx="0.35" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#E3ECFF"/>
+      <stop offset="1" stop-color="#7FA2F0"/>
+    </radialGradient>
+    <radialGradient id="shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#1B2A5C" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#1B2A5C" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Key glyph at origin, pointing right, ~34 units long. -->
+    <g id="key">
+      <circle cx="-10" cy="0" r="8" fill="none" stroke="#5FF2F2" stroke-width="5"/>
+      <rect x="-3" y="-2.5" width="24" height="5" rx="2.5" fill="#5FF2F2"/>
+      <rect x="12" y="0" width="4" height="8" rx="1.5" fill="#5FF2F2"/>
+      <rect x="18" y="0" width="4" height="6" rx="1.5" fill="#5FF2F2"/>
+    </g>
+  </defs>
+
+  <!-- shadow -->
+  <ellipse cx="0" cy="132" rx="80" ry="10" fill="url(#shadow)"/>
+  <!-- feet / thrusters -->
+  <rect x="-50" y="84" width="34" height="30" rx="14" fill="url(#limb)"/>
+  <rect x="16" y="84" width="34" height="30" rx="14" fill="url(#limb)"/>
+  <ellipse cx="-33" cy="114" rx="11" ry="3" fill="#5FF2F2" opacity="0.8"/>
+  <ellipse cx="33" cy="114" rx="11" ry="3" fill="#5FF2F2" opacity="0.8"/>
+  <!-- antennae -->
+  <g stroke="#7FA2F0" stroke-width="6" stroke-linecap="round">
+    <line x1="-30" y1="-90" x2="-42" y2="-122"/>
+    <line x1="30" y1="-90" x2="42" y2="-122"/>
+  </g>
+  <circle cx="-44" cy="-128" r="11" fill="url(#ball)"/>
+  <circle cx="44" cy="-128" r="11" fill="url(#ball)"/>
+  <circle cx="-46" cy="-133" r="4.5" fill="#5FF2F2"/>
+  <circle cx="42" cy="-133" r="4.5" fill="#5FF2F2"/>
+  <!-- left arm holding key -->
+  <ellipse cx="-104" cy="30" rx="16" ry="24" transform="rotate(35 -104 30)" fill="url(#limb)"/>
+  <circle cx="-132" cy="64" r="24" fill="url(#glow)"/>
+  <g transform="translate(-123 53) rotate(125)"><use href="#key"/></g>
+  <circle cx="-114" cy="44" r="10" fill="#2F6BEF"/>
+  <!-- right arm waving -->
+  <ellipse cx="106" cy="-14" rx="15" ry="26" transform="rotate(-30 106 -14)" fill="url(#limb)"/>
+  <circle cx="120" cy="-40" r="13" fill="#4A82F5"/>
+  <g fill="none" stroke="#7FA2F0" stroke-width="3" stroke-linecap="round" opacity="0.8">
+    <path d="M 136 -62 q 8 6 6 16"/>
+    <path d="M 146 -70 q 12 10 9 26"/>
+  </g>
+  <!-- body -->
+  <use href="#orb"/>
+  <use href="#face"/>
+  <!-- key emblem -->
+  <circle cx="58" cy="64" r="14" fill="url(#glow)"/>
+  <g transform="translate(58 64) rotate(-40) scale(0.55)"><use href="#key"/></g>
+</svg>

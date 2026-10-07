@@ -41,8 +41,13 @@ commit_preprocessors = [
   # { pattern = '.*', replace_command = 'typos --write-changes -' },
 ]
 # regex for parsing and grouping commits
+# Order matters: the first matching parser wins. Broker manifest changes get
+# their own user-facing group whatever their type, so scope them `brokers`
+# (e.g. `fix(brokers): ...`). git-cliff cannot group by touched paths, so the
+# scope is the convention for commits that change app/src-tauri/brokers/.
 commit_parsers = [
-  { message = "^feat", group = "<!-- 0 -->Features" },
+  { message = "^[a-z]+(\\([^)]*\\bbrokers?\\b[^)]*\\))!?:", group = "<!-- 1b -->Brokers" },
+  { message = "^feat", group = "<!-- 0 -->New" },
   { message = "^fix", group = "<!-- 1 -->Fixed" },
   { message = "^doc", group = "<!-- 3 -->Documentation" },
   { message = "^perf", group = "<!-- 4 -->Performance" },

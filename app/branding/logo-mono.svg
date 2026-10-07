@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <title>AutoLogin mono glyph</title>
+  <!-- Single-color glyph for macOS tray (template image) and Android notification icon.
+       Pure black on transparent; the OS tints it. Eyes are knocked out of the visor. -->
+  <g fill="none" stroke="#000" stroke-linecap="round">
+    <circle cx="16" cy="16.5" r="13" stroke-width="2.6"/>
+    <path d="M 8.6 13.4 A 8 8 0 0 1 21.8 10.4" stroke-width="2.2"/>
+  </g>
+  <path fill="#000" fill-rule="evenodd" d="
+    M 12 15 h 8 a 4.5 4.5 0 0 1 0 9 h -8 a 4.5 4.5 0 0 1 0 -9 z
+    M 10.6 19.5 a 1.7 1.7 0 1 0 3.4 0 a 1.7 1.7 0 1 0 -3.4 0 z
+    M 18 19.5 a 1.7 1.7 0 1 0 3.4 0 a 1.7 1.7 0 1 0 -3.4 0 z"/>
+</svg>

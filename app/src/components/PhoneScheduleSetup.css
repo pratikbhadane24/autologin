@@ -1,0 +1,68 @@
+.phone-schedule {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.phone-mode {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.phone-mode:disabled {
+  opacity: 0.55;
+}
+.phone-mode legend {
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+.phone-mode label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.phone-mode input {
+  margin-top: 0.3em;
+}
+
+.phone-mode small,
+.phone-needs small {
+  display: block;
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+}
+
+/* Missing permissions read as one checklist: what, why, one button each. */
+.phone-needs {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-panel);
+  background: var(--warn-soft);
+}
+.phone-needs li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+.phone-needs li + li {
+  border-top: 1px solid var(--line);
+}
+
+/* Phones (keep in step with PHONE_QUERY in lib/useMediaQuery.ts). */
+@media (max-width: 640px) {
+  .phone-needs li {
+    flex-wrap: wrap;
+  }
+  .phone-needs li .button {
+    flex: 1 1 auto;
+  }
+  .phone-mode label {
+    min-height: var(--touch-target);
+  }
+}

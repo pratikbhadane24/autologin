@@ -1,0 +1,203 @@
+//! Desktop app wiring: startup, state, commands, tray and scheduler.
+
+pub mod commands;
+pub mod deep_link;
+pub mod dev;
+pub mod manifest_service;
+#[cfg(mobile)]
+pub mod phone_schedule;
+pub mod run_control;
+pub mod schedule_service;
+pub mod settings;
+pub mod state;
+#[cfg(desktop)]
+pub mod tray;
+#[cfg(desktop)]
+pub mod update_service;
+pub mod views;
+
+use std::sync::{Arc, Mutex};
+
+use tauri::{App, Manager};
+use tokio::sync::Notify;
+
+#[cfg(desktop)]
+use crate::broker::registry::ManifestBundle;
+#[cfg(desktop)]
+use crate::store::accounts::Accounts;
+use crate::store::secrets::SecretStore;
+#[cfg(not(target_os = "android"))]
+use crate::store::vault::KeychainMasterKey;
+use crate::store::vault::VaultStore;
+#[cfg(desktop)]
+use crate::migrate_v1;
+use crate::{logging, store};
+use state::AppState;
+
+/// Keeps the log writer alive for the app's lifetime.
+struct LogGuard(#[allow(dead_code)] Mutex<tracing_appender::non_blocking::WorkerGuard>);
+
+pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+    let dev = dev::options();
+    let (data_dir, log_dir) = match &dev.data_dir {
+        Some(dir) => (dir.clone(), dir.join("logs")),
+        None => (app.path().app_data_dir()?, app.path().app_log_dir()?),
+    };
+    std::fs::create_dir_all(&data_dir)?;
+    std::fs::create_dir_all(&log_dir)?;
+    let guard = logging::init(&log_dir)?;
+    app.manage(LogGuard(Mutex::new(guard)));
+    let version = app.package_info().version.to_string();
+    tracing::info!(%version, data = %data_dir.display(), "AutoLogin starting");
+
+    let conn = store::db::open(&data_dir)?;
+    let bundle = manifest_service::initial_bundle(&data_dir)?;
+    tracing::info!(manifest_version = bundle.index.manifest_version, "broker manifests loaded");
+    // One keychain item (the vault key) for all accounts: one permission
+    // prompt per app version instead of one per account.
+    let secrets: Arc<dyn SecretStore> = if dev.memory_secrets {
+        tracing::warn!("development: secrets kept in memory only");
+        Arc::new(crate::store::secrets::MemoryStore::default())
+    } else {
+        Arc::new(VaultStore::new(master_key(&data_dir)))
+    };
+    // AutoLogin 1.x only ever ran on desktop.
+    #[cfg(desktop)]
+    let migration = migrate_from_v1(&conn, secrets.as_ref(), &bundle);
+    #[cfg(mobile)]
+    let migration = None;
+
+    // Unlock the vault now, so any OS permission prompt (first run, or after
+    // an update) appears at launch rather than during the scheduled login.
+    let unlocker = Arc::clone(&secrets);
+    std::thread::spawn(move || {
+        if let Err(error) = unlocker.unlock() {
+            tracing::warn!(%error, "could not unlock saved passwords at launch");
+        }
+    });
+
+    app.manage(AppState {
+        conn: Arc::new(Mutex::new(conn)),
+        secrets,
+        bundle: arc_swap::ArcSwap::from_pointee(bundle),
+        data_dir,
+        log_dir,
+        active_run: Mutex::new(None),
+        migration: Mutex::new(migration),
+        pending_import: Mutex::new(None),
+        schedule_changed: Notify::new(),
+        app_version: version,
+    });
+    register_app_links(app);
+    #[cfg(desktop)]
+    {
+        tray::create(app)?;
+        // Windows: remove the AutoLogin 1.x program (its data is migrated
+        // above). Runs every launch; a quick registry check once v1 is gone.
+        std::thread::spawn(|| {
+            let removed = crate::v1_uninstall::remove_v1();
+            if !removed.is_empty() {
+                tracing::info!(count = removed.len(), "AutoLogin 1.x uninstalled");
+            }
+        });
+        update_service::spawn(app.handle().clone());
+    }
+    #[cfg(desktop)]
+    schedule_service::spawn(app.handle().clone());
+    #[cfg(mobile)]
+    phone_schedule::spawn(app.handle().clone());
+    manifest_service::spawn(app.handle().clone());
+    if dev.run_all_then_quit {
+        let handle = app.handle().clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            tracing::warn!("development: starting a run of all accounts");
+            if let Err(reason) = run_control::start(&handle, &run_control::Selection::All, crate::runner::Trigger::Manual, false) {
+                tracing::error!(%reason, "development run not started");
+                handle.exit(1);
+            }
+        });
+    }
+    Ok(())
+}
+
+/// Where the vault's master key lives on this platform.
+#[cfg(not(target_os = "android"))]
+fn master_key(_data_dir: &std::path::Path) -> Box<dyn crate::store::vault::MasterKey> {
+    Box::new(KeychainMasterKey)
+}
+
+/// Android: an app-private file holding the key wrapped by the Android
+/// Keystore (backups are also disabled in the manifest).
+#[cfg(target_os = "android")]
+fn master_key(data_dir: &std::path::Path) -> Box<dyn crate::store::vault::MasterKey> {
+    use crate::store::{android_keystore::AndroidKeystore, vault::FileMasterKey};
+    Box::new(FileMasterKey::wrapped(data_dir.join("vault.key"), Box::new(AndroidKeystore)))
+}
+
+/// Show a system notification. Phones need a monochrome status-bar icon.
+pub fn notify(app: &tauri::AppHandle, title: &str, body: &str) {
+    use tauri_plugin_notification::NotificationExt;
+    let builder = app.notification().builder().title(title).body(body);
+    #[cfg(mobile)]
+    let builder = builder.icon("ic_stat_autologin");
+    if let Err(error) = builder.show() {
+        tracing::debug!(%error, "notification failed");
+    }
+}
+
+/// Bring the main window forward (tray, single-instance, app links).
+pub fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        #[cfg(desktop)]
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
+#[cfg(desktop)]
+fn migrate_from_v1(
+    conn: &rusqlite::Connection,
+    secrets: &dyn SecretStore,
+    bundle: &ManifestBundle,
+) -> Option<migrate_v1::MigrationOutcome> {
+    let v1_dir = migrate_v1::v1_data_dir()?;
+    let accounts = Accounts::new(conn, secrets, bundle);
+    match migrate_v1::run(&v1_dir, conn, &accounts, bundle) {
+        Ok(Some(outcome)) => {
+            if let Some(background) = outcome.background_login {
+                let current = settings::load(conn);
+                let carried = settings::AppSettings { manual_headless: background, ..current };
+                if let Err(error) = settings::save(conn, &carried) {
+                    tracing::warn!(%error, "could not carry over v1 browser preference");
+                }
+            }
+            Some(outcome)
+        }
+        Ok(None) => None,
+        Err(error) => {
+            tracing::error!(%error, "v1 migration failed; v1 data left untouched");
+            None
+        }
+    }
+}
+
+/// `autologin://` links: register the scheme (Windows/Linux need it at
+/// runtime; macOS gets it from the bundle) and handle the launch link and
+/// later ones. Single-instance forwards links from a second launch here.
+fn register_app_links(app: &App) {
+    use tauri_plugin_deep_link::DeepLinkExt;
+    let links = app.deep_link();
+    #[cfg(any(windows, target_os = "linux"))]
+    if let Err(error) = links.register_all() {
+        tracing::warn!(%error, "could not register autologin:// links");
+    }
+    let handle = app.handle().clone();
+    links.on_open_url(move |event| deep_link::handle(&handle, event.urls()));
+    match links.get_current() {
+        Ok(Some(urls)) => deep_link::handle(app.handle(), urls),
+        Ok(None) => {}
+        Err(error) => tracing::debug!(%error, "no launch link"),
+    }
+}

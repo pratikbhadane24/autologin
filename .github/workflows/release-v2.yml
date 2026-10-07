@@ -1,0 +1,466 @@
+name: Release (v2)
+
+# Builds AutoLogin v2 (Tauri) for Windows, macOS (universal), Linux and
+# Android (APK) into a DRAFT GitHub release, plus a signed broker-manifest
+# bundle.
+#
+#   tag push v2.x.y            full release (draft; publish it by hand)
+#   workflow_dispatch          re-run a full release for an existing tag, or
+#     manifest_only: true      re-sign brokers from the selected branch and
+#                              replace the manifest assets on a release
+#                              (defaults to the current "latest" release)
+#
+# See docs/releasing.md. Third-party actions are pinned to full commit SHAs
+# (version in the trailing comment); Dependabot keeps the pins current.
+# Secrets reach only the step that uses them.
+
+on:
+  push:
+    tags:
+      - 'v2.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v2.0.1). Optional with manifest_only: defaults to the latest published release.'
+        required: false
+        type: string
+      manifest_only:
+        description: 'Only rebuild and re-upload the signed broker manifest (from the selected branch)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-v2-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '10'
+  TAURI_LINUX_DEPS: >-
+    libwebkit2gtk-4.1-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
+    libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+    build-essential pkg-config patchelf
+
+jobs:
+  prepare:
+    name: Resolve tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      version: ${{ steps.resolve.outputs.version }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+      manifest_only: ${{ steps.resolve.outputs.manifest_only }}
+    steps:
+      - name: Resolve and validate tag
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          MANIFEST_ONLY: ${{ inputs.manifest_only == true }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "push" ]; then
+            tag="$REF_NAME"; manifest_only=false
+          else
+            tag="$INPUT_TAG"; manifest_only="$MANIFEST_ONLY"
+            if [ -z "$tag" ] && [ "$manifest_only" = "true" ]; then
+              tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+              echo "Using latest published release: $tag"
+            fi
+          fi
+          if ! [[ "$tag" =~ ^v2\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::'$tag' is not a v2 release tag (expected v2.MAJOR.MINOR[-pre])"
+            exit 1
+          fi
+          version="${tag#v}"
+          prerelease=false
+          [[ "$version" == *-* ]] && prerelease=true
+          {
+            echo "tag=$tag"
+            echo "version=$version"
+            echo "prerelease=$prerelease"
+            echo "manifest_only=$manifest_only"
+          } >> "$GITHUB_OUTPUT"
+
+  release:
+    name: Create draft release
+    needs: prepare
+    if: needs.prepare.outputs.manifest_only != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the draft release
+    outputs:
+      release_id: ${{ steps.draft.outputs.release_id }}
+    steps:
+      # Full history so git-cliff sees every commit since the previous tag.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: refs/tags/${{ needs.prepare.outputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check Cargo.toml version matches tag
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          cargo_version=$(sed -n 's/^version = "\(.*\)"/\1/p' app/src-tauri/Cargo.toml | head -1)
+          if [ "$cargo_version" != "$VERSION" ]; then
+            echo "::error::app/src-tauri/Cargo.toml version is '$cargo_version' but tag is v$VERSION"
+            exit 1
+          fi
+
+      - name: Generate release notes
+        id: notes
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        with:
+          config: cliff.toml
+          args: --verbose --current --strip header
+        env:
+          OUTPUT: RELEASE_NOTES.md
+
+      # Created once here (not by each matrix job) so the three builds attach
+      # to the same draft instead of racing to create duplicates. The notes
+      # are the release body; tauri-action receives the release id.
+      - name: Create or reuse draft release
+        id: draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+                 --jq "map(select(.tag_name == \"$TAG\")) | first | .id // empty")
+          if [ -n "$id" ]; then
+            echo "Reusing release $id for $TAG; refreshing notes"
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" -F body=@RELEASE_NOTES.md > /dev/null
+          else
+            id=$(gh api "repos/$GITHUB_REPOSITORY/releases" \
+                   -f tag_name="$TAG" -f name="AutoLogin $VERSION" \
+                   -F draft=true -F prerelease="$PRERELEASE" \
+                   -F body=@RELEASE_NOTES.md --jq .id)
+            echo "Created draft release $id for $TAG"
+          fi
+          echo "release_id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: [prepare, release]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            # WiX rejects non-numeric pre-release versions (2.0.0-beta.1), so
+            # pre-releases ship the NSIS installer only.
+            args: --bundles msi,nsis
+            prerelease_args: --bundles nsis
+            rust_targets: ''
+          - name: macos-universal
+            os: macos-latest
+            args: --target universal-apple-darwin
+            prerelease_args: --target universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - name: linux
+            os: ubuntu-22.04
+            args: --bundles appimage,deb
+            prerelease_args: --bundles appimage,deb
+            rust_targets: ''
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write # tauri-action uploads assets to the draft
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: refs/tags/${{ needs.prepare.outputs.tag }}
+          persist-credentials: false
+
+      - name: Install Tauri system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          # shellcheck disable=SC2086 # deliberate word splitting into package names
+          sudo apt-get install -y $TAURI_LINUX_DEPS
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable branch
+        with:
+          toolchain: stable # required when pinned by SHA
+          targets: ${{ matrix.rust_targets }}
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: app/src-tauri -> target
+          key: release-${{ matrix.name }}
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: app
+        run: pnpm install --frozen-lockfile
+
+      # Developer ID signing + notarization runs only when all six Apple
+      # secrets exist. Tauri treats an empty APPLE_* variable as "set", so the
+      # secrets go only to the signed build step, never to an unsigned one.
+      # Without them macOS is ad-hoc signed (APPLE_SIGNING_IDENTITY=-), which
+      # keeps arm64 binaries runnable but trips Gatekeeper on first launch.
+      - name: Detect macOS signing secrets
+        id: apple
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          HAS_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
+          HAS_ALL: >-
+            ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' &&
+            secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_ID != '' &&
+            secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+        run: |
+          if [ "$HAS_ALL" = "true" ]; then
+            echo "Developer ID signing + notarization enabled"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          elif [ "$HAS_CERT" = "true" ]; then
+            echo "::error::APPLE_CERTIFICATE is set but other Apple secrets are missing (see docs/releasing.md)"
+            exit 1
+          else
+            echo "No Apple secrets: ad-hoc signing, no notarization"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and upload
+        if: steps.apple.outputs.signed != 'true'
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
+        with:
+          projectPath: app
+          tauriScript: pnpm tauri
+          releaseId: ${{ needs.release.outputs.release_id }}
+          includeUpdaterJson: true
+          # Updater artifacts (signed with TAURI_SIGNING_PRIVATE_KEY) only in CI, so
+          # local `tauri build` works without the key.
+          args: ${{ needs.prepare.outputs.prerelease == 'true' && matrix.prerelease_args || matrix.args }} --config src-tauri/tauri.release.conf.json
+
+      - name: Build, sign, notarize and upload (macOS)
+        if: steps.apple.outputs.signed == 'true'
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: app
+          tauriScript: pnpm tauri
+          releaseId: ${{ needs.release.outputs.release_id }}
+          includeUpdaterJson: true
+          args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
+
+  android:
+    name: Build (android)
+    needs: [prepare, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # upload the APK to the draft
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: refs/tags/${{ needs.prepare.outputs.tag }}
+          persist-credentials: false
+
+      # The APK must always be signed with the same key, or phones refuse the
+      # update. No key yet: skip (with a warning) rather than fail the release.
+      - name: Detect Android signing secrets
+        id: keystore
+        env:
+          HAS_ALL: >-
+            ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' &&
+            secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+        run: |
+          if [ "$HAS_ALL" = "true" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Android signing secrets are not set; no APK in this release (see docs/releasing.md)"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable branch
+        if: steps.keystore.outputs.signed == 'true'
+        with:
+          toolchain: stable # required when pinned by SHA
+          targets: aarch64-linux-android,armv7-linux-androideabi
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: steps.keystore.outputs.signed == 'true'
+        with:
+          workspaces: app/src-tauri -> target
+          key: release-android
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        if: steps.keystore.outputs.signed == 'true'
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: steps.keystore.outputs.signed == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        if: steps.keystore.outputs.signed == 'true'
+        working-directory: app
+        run: pnpm install --frozen-lockfile
+
+      # The runner image ships the Android SDK, NDK and JDK 21.
+      - name: Build signed APK
+        if: steps.keystore.outputs.signed == 'true'
+        working-directory: app
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64" NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          (umask 077 && printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_PATH")
+          trap 'rm -f "$ANDROID_KEYSTORE_PATH"' EXIT
+          pnpm tauri android build --apk --target aarch64 --target armv7
+
+      - name: Upload APK to the draft release
+        if: steps.keystore.outputs.signed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          apk="AutoLogin_${VERSION}_android.apk"
+          cp app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk "$apk"
+          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner" verify "$apk"
+          gh release upload "$TAG" "$apk" --clobber
+
+  manifest:
+    name: Signed broker manifest
+    needs: [prepare, release]
+    # Runs for full releases and for manifest_only dispatches (release skipped).
+    if: >-
+      always() && needs.prepare.result == 'success' &&
+      (needs.release.result == 'success' || needs.release.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # upload manifest assets
+    steps:
+      # Full release: brokers as of the tag. Manifest-only: the branch the
+      # workflow was dispatched on (where the broker fix landed).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.prepare.outputs.manifest_only == 'true' && github.ref || format('refs/tags/{0}', needs.prepare.outputs.tag) }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Require newer manifest_version than the release has
+        if: needs.prepare.outputs.manifest_only == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          version_of() { sed -n 's/^manifest_version *= *\([0-9]*\).*/\1/p' | head -1; }
+          new=$(version_of < app/src-tauri/brokers/index.toml)
+          if ! gh release download "$TAG" -p brokers-manifest.json -O old.json 2>/dev/null; then
+            echo "No manifest on $TAG yet; publishing manifest_version=$new"
+            exit 0
+          fi
+          old=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync("old.json","utf8")).files["index.toml"])' | version_of)
+          echo "release has manifest_version=$old, branch has $new"
+          if [ "$new" -le "$old" ]; then
+            echo "::error::Bump manifest_version in app/src-tauri/brokers/index.toml (apps ignore a manifest that is not newer than the one they have)"
+            exit 1
+          fi
+
+      - name: Sign manifest
+        env:
+          MANIFEST_SIGNING_KEY: ${{ secrets.MANIFEST_SIGNING_KEY }}
+        run: |
+          if [ -z "$MANIFEST_SIGNING_KEY" ]; then
+            echo "::error::MANIFEST_SIGNING_KEY secret is not set"
+            exit 1
+          fi
+          node scripts/sign-manifest.mjs --dir app/src-tauri/brokers --out dist-manifest
+
+      # Set repository variable MANIFEST_PUBLIC_KEY to the key the app trusts
+      # (TRUSTED_MANIFEST_KEYS) to catch a secret/app key mismatch here.
+      - name: Verify against the app's public key
+        if: vars.MANIFEST_PUBLIC_KEY != ''
+        env:
+          MANIFEST_PUBLIC_KEY: ${{ vars.MANIFEST_PUBLIC_KEY }}
+        run: node scripts/sign-manifest.mjs --verify "$MANIFEST_PUBLIC_KEY" --out dist-manifest --dir app/src-tauri/brokers
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          gh release upload "$TAG" \
+            dist-manifest/brokers-manifest.json dist-manifest/brokers-manifest.json.sig \
+            --clobber
+
+  check-assets:
+    name: Check v1 updater can find installers
+    needs: [prepare, release, build]
+    # Pre-releases are invisible to v1 (it reads /releases/latest) and ship no MSI.
+    if: needs.prepare.outputs.prerelease != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # draft releases are only visible with write access
+    steps:
+      # Mirrors v1 find_platform_asset(): it lower-cases asset names, keeps
+      # those ending in .msi / .dmg / .appimage and takes the FIRST match. More
+      # than one match per platform would make the pick order-dependent.
+      - name: Exactly one .msi, .dmg and .AppImage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.release.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          names=$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" --jq '.[].name')
+          echo "$names"
+          status=0
+          for ext in .msi .dmg .appimage; do
+            count=$(printf '%s\n' "$names" | awk -v e="$ext" '{ n = tolower($0) } length(n) >= length(e) && substr(n, length(n) - length(e) + 1) == e' | wc -l)
+            if [ "$count" -ne 1 ]; then
+              echo "::error::expected exactly one asset ending in $ext, found $count"
+              status=1
+            fi
+          done
+          exit $status

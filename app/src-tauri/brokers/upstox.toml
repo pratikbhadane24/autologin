@@ -1,0 +1,73 @@
+id = "upstox"
+name = "Upstox"
+kind = "browser"
+aliases = ["upstox"]
+
+[[fields]]
+key = "client_id"
+label = "Client ID"
+from_cirrus = true
+
+[[fields]]
+key = "api_key"
+label = "API Key"
+from_cirrus = true
+help = "From your own Upstox API app (account.upstox.com/developer/apps). Set the app's redirect URL to https://app.cirrus.trade/add-broker-account/upstox."
+
+[[fields]]
+key = "mobile_number"
+label = "Mobile Number"
+pattern = "^\\d{10}$"
+
+[[fields]]
+key = "mpin"
+label = "PIN"
+secret = true
+pattern = "^\\d{6}$"
+
+[[fields]]
+key = "totp_key"
+label = "TOTP Secret"
+secret = true
+totp = true
+
+[session]
+reset = "03:30"
+tz = "Asia/Kolkata"
+
+[[steps]]
+action = "goto"
+url = "https://api-v2.upstox.com/login/authorization/dialog?response_type=code&client_id={url:api_key}&redirect_uri={tenant.cirrus_app}/add-broker-account/upstox&state={url:client_id}"
+
+[[steps]]
+action = "type"
+sel = ["#mobileNum"]
+value = "{mobile_number}"
+
+[[steps]]
+action = "click"
+sel = ["#getOtp"]
+
+[[steps]]
+action = "type"
+sel = ["#otpNum"]
+value = "{totp}"
+
+# Replaces v1's 3 x (10s wait + 10s sleep) retry loop.
+[[steps]]
+action = "type"
+sel = ["#pinCode"]
+value = "{mpin}"
+timeout_ms = 30000
+
+[[steps]]
+action = "click"
+sel = ["#pinContinueBtn"]
+
+[success]
+text = "Account Saved!"
+
+[callback]
+url_matches = "{tenant.callback_hosts}/add-broker-account/upstox"
+endpoint = "/api/sessions/upstox/callback"
+body = { client_id = "{client_id}", code = "{query.code}" }

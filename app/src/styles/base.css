@@ -1,0 +1,167 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  /* Phones draw the app edge to edge: keep clear of the status and nav bars. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 650;
+  line-height: 1.15;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0;
+  max-width: 72ch;
+}
+
+a {
+  color: var(--primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 7px 14px;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font-weight: 550;
+  white-space: nowrap;
+}
+.button:hover:not(:disabled) {
+  border-color: var(--ink-soft);
+}
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.button.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+}
+.button.danger {
+  color: var(--fail);
+}
+.button.quiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius-control);
+  padding: 7px 10px;
+}
+.input[aria-invalid="true"] {
+  border-color: var(--fail);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+}
+.field label {
+  font-weight: 600;
+}
+.field .hint {
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+}
+.field .error {
+  color: var(--fail);
+  font-size: var(--step--1);
+}
+
+.muted {
+  color: var(--ink-soft);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.notice {
+  color: var(--ink-soft);
+  border-left: 3px solid var(--primary);
+  padding-left: var(--space-3);
+}
+
+.form-error {
+  color: var(--fail);
+  background: var(--fail-soft);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+}
+
+/* Phones (keep in step with PHONE_QUERY in lib/useMediaQuery.ts): finger-sized
+   controls, and long button labels wrap instead of widening the page. */
+@media (max-width: 640px) {
+  .button {
+    min-height: var(--touch-target);
+    justify-content: center;
+    white-space: normal;
+    text-align: center;
+  }
+  .button.link {
+    min-height: 0;
+  }
+  .input {
+    min-height: var(--touch-target);
+  }
+}

@@ -1,0 +1,49 @@
+.accounts {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+
+.accounts th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.accounts td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.accounts tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.accounts tr.selected td {
+  background: var(--primary-soft);
+}
+
+.accounts .broker {
+  font-weight: 600;
+}
+
+.col-check {
+  width: 36px;
+}
+
+.col-actions {
+  width: 1%;
+  text-align: right;
+}
+.accounts td.col-actions {
+  padding-block: calc(var(--space-3) - 7px);
+}
+
