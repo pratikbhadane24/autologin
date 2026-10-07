@@ -5,6 +5,8 @@
 # replaced: delete a file on purpose first if you really mean to rotate it.
 #
 #   scripts/signing-keys.sh android|updater|manifest|all [--no-upload]
+#   scripts/signing-keys.sh paste      Cirrus paste key: never uploaded to
+#                                      GitHub; it goes into the Cirrus backend
 #
 # See .secrets/README.md for what each key signs and where its public half
 # goes, and docs/releasing.md for how the release workflow uses them.
@@ -92,10 +94,26 @@ manifest_key() {
   echo "  $public"
 }
 
+paste_key() {
+  local file="$SECRETS/paste.key" public kid
+  refuse_existing "$file"
+  kid="cirrus-$(date +%Y%m)"
+  public="$(node "$ROOT/scripts/sign-manifest.mjs" --keygen "$file" | sed -n 's/^public key (embed in app): //p')"
+  [ -n "$public" ] || die "paste key generation printed no public key"
+  chmod 600 "$file"
+  echo "created $file"
+  echo "  On the broker-auth backend (Dokploy env, not GitHub):"
+  echo "    AUTOLOGIN_SIGNING_KEY=<the 64 hex characters in $file>"
+  echo "    AUTOLOGIN_SIGNING_KEY_ID=$kid"
+  echo "  For TRUSTED_PASTE_KEYS in app/src-tauri/src/paste.rs:"
+  echo "    (\"$kid\", \"$public\")"
+}
+
 main() {
   local what="${1:-}"
   [ "${2:-}" = "--no-upload" ] && UPLOAD=false
-  case "$what" in android|updater|manifest|all) ;; *) die "usage: $0 android|updater|manifest|all [--no-upload]";; esac
+  case "$what" in android|updater|manifest|paste|all) ;; *) die "usage: $0 android|updater|manifest|paste|all [--no-upload]";; esac
+  [ "$what" = paste ] && UPLOAD=false # a backend secret, not a GitHub one
 
   umask 077
   mkdir -p "$SECRETS"
@@ -111,6 +129,7 @@ main() {
     android) android_key ;;
     updater) updater_key ;;
     manifest) manifest_key ;;
+    paste) paste_key ;;
     all) android_key; updater_key; manifest_key ;;
   esac
   echo "Back up the new files in .secrets/ (and their passwords) to your password manager now."
