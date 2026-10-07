@@ -145,6 +145,8 @@ apple_cert() {
   local key="$SECRETS/$APPLE_KEY" cer="$SECRETS/$APPLE_CER" p12="$SECRETS/$APPLE_P12"
   local pem chain subject identity team password apple_id app_password
   [ -f "$key" ] || die "run 'scripts/signing-keys.sh apple-csr' first"
+  # Accept the file under the name Apple downloads it as.
+  [ -f "$cer" ] || [ ! -f "$SECRETS/developerID_application.cer" ] || cer="$SECRETS/developerID_application.cer"
   [ -f "$cer" ] || die "save Apple's certificate as .secrets/$APPLE_CER first"
   refuse_existing "$p12"
   # Scratch copies of public certificates only (nothing secret).
