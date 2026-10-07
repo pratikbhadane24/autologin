@@ -42,7 +42,13 @@ pub enum EngineError {
     #[error("step {step} (fill_split): found {found} boxes for {needed} characters")]
     NotEnoughBoxes { step: usize, needed: usize, found: usize },
     #[error("step {step} (http): {message}")]
-    Http { step: usize, message: String },
+    Http {
+        step: usize,
+        message: String,
+        /// The service's own reason when it answered with a 4xx refusal
+        /// (shown to the user as is; retrying wouldn't change the answer).
+        refused: Option<String>,
+    },
     #[error("invalid regex {0:?}")]
     InvalidRegex(String),
     #[error("broker showed: {0}")]
@@ -293,7 +299,7 @@ impl<'e, 'c, D: PageDriver> StepEngine<'e, 'c, D> {
         body: Option<&str>,
         extract: &std::collections::BTreeMap<String, String>,
     ) -> Result<(), EngineError> {
-        let http_error = |message: String| EngineError::Http { step, message: self.redactor.apply(&message) };
+        let http_error = |message: String| EngineError::Http { step, message: self.redactor.apply(&message), refused: None };
         let method = reqwest::Method::from_bytes(method.as_bytes()).map_err(|e| http_error(e.to_string()))?;
         let mut request = self.http.request(method, self.ctx.render(url)?);
         for (name, template) in headers {
@@ -304,10 +310,22 @@ impl<'e, 'c, D: PageDriver> StepEngine<'e, 'c, D> {
         }
         let response = request.send().await.map_err(|e| http_error(e.to_string()))?;
         let status = response.status();
-        let json: Value = response.json().await.map_err(|e| http_error(e.to_string()))?;
+        let body = response.text().await.map_err(|e| http_error(e.to_string()))?;
+        let json: Option<Value> = serde_json::from_str(&body).ok();
         if !status.is_success() {
-            return Err(http_error(format!("HTTP {status}")));
+            // APIs explain refusals in `message` (Cirrus) or `detail` (FastAPI).
+            let reason = json
+                .as_ref()
+                .and_then(|j| ["message", "detail"].iter().find_map(|k| j.get(*k)?.as_str()))
+                .map(|reason| self.redactor.apply(reason));
+            let message = match &reason {
+                Some(reason) => format!("HTTP {status}: {reason}"),
+                None => format!("HTTP {status}"),
+            };
+            let refused = reason.filter(|_| status.is_client_error());
+            return Err(EngineError::Http { step, message: self.redactor.apply(&message), refused });
         }
+        let json = json.ok_or_else(|| http_error("response is not JSON".into()))?;
         let mut found = Vec::new();
         for (var, pointer) in extract {
             let value = json

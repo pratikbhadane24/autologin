@@ -2,7 +2,8 @@
 //!
 //! Syntax: `{key}` or `{filter:...:key}`, where `key` is a bare account field
 //! (`client_id`), a namespaced value (`consts.api_key`, `tenant.cirrus_app`,
-//! `vars.consent_id`) or the special `totp`. Filters: `b64`, `url`; they
+//! `vars.consent_id`) or the special `totp`. Filters: `b64`, `url`, `json`
+//! (a quoted JSON string, for request bodies); they
 //! apply right to left, so `{url:b64:client_id}` is `url(b64(client_id))`.
 //! `{{` and `}}` produce literal braces.
 
@@ -23,6 +24,8 @@ pub enum TemplateError {
 pub enum Filter {
     Base64,
     Url,
+    /// A JSON string literal, quotes included, for JSON request bodies.
+    Json,
 }
 
 impl Filter {
@@ -30,6 +33,7 @@ impl Filter {
         match name {
             "b64" => Some(Self::Base64),
             "url" => Some(Self::Url),
+            "json" => Some(Self::Json),
             _ => None,
         }
     }
@@ -41,6 +45,7 @@ impl Filter {
                 percent_encoding::utf8_percent_encode(value, percent_encoding::NON_ALPHANUMERIC)
                     .to_string()
             }
+            Self::Json => serde_json::Value::from(value).to_string(),
         }
     }
 }
@@ -148,6 +153,12 @@ mod tests {
         let map: HashMap<String, String> =
             pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
         move |key| map.get(key).cloned()
+    }
+
+    #[test]
+    fn json_filter_makes_a_quoted_escaped_string() {
+        let out = render(r#"{{"id":{json:client_id}}}"#, lookup_from(&[("client_id", r#"a"b\c"#)])).unwrap();
+        assert_eq!(out, r#"{"id":"a\"b\\c"}"#);
     }
 
     #[test]

@@ -405,3 +405,62 @@ fn failure_line_shows_only_the_message_of_a_json_error_body() {
     let text = r#"{"status":"error","message":"Invalid `api_key`.","data":null,"error_type":"InputException"}"#;
     assert_eq!(failure_line(text, &phrases).as_deref(), Some("Invalid `api_key`."));
 }
+
+fn http_step(url: String) -> Step {
+    Step::Http {
+        method: "POST".into(),
+        url,
+        headers: Default::default(),
+        body: Some(r#"{{"client_id":{json:client_id}}}"#.into()),
+        extract: [("login_url".to_string(), "/data/login_url".to_string())].into(),
+    }
+}
+
+#[tokio::test]
+async fn http_step_values_feed_later_steps() {
+    use wiremock::matchers::{body_json, method, path};
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(method("POST"))
+        .and(path("/consent"))
+        .and(body_json(serde_json::json!({ "client_id": "AB12" })))
+        .respond_with(
+            wiremock::ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({ "data": { "login_url": "https://broker/consent?id=7" } })),
+        )
+        .mount(&server)
+        .await;
+    let page = FakePage::with(&[]);
+    page.set(|s| s.body = "Account Saved!".into());
+    let manifest = demo_manifest(vec![
+        http_step(format!("{}/consent", server.uri())),
+        Step::Goto { url: "{vars.login_url}".into() },
+    ]);
+
+    run_with(&page, &manifest, &account()).await.unwrap();
+
+    assert_eq!(page.actions(), vec!["goto https://broker/consent?id=7".to_string()]);
+}
+
+#[tokio::test]
+async fn http_step_failure_shows_the_servers_reason() {
+    use wiremock::matchers::method;
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(method("POST"))
+        .respond_with(
+            wiremock::ResponseTemplate::new(401)
+                // The broker-auth API's error envelope.
+                .set_body_json(serde_json::json!({
+                    "success": false,
+                    "message": "Log in to this Dhan account on Cirrus once first.",
+                    "data": null
+                })),
+        )
+        .mount(&server)
+        .await;
+    let page = FakePage::with(&[]);
+    let manifest = demo_manifest(vec![http_step(format!("{}/consent", server.uri()))]);
+
+    let error = run_with(&page, &manifest, &account()).await.unwrap_err().to_string();
+
+    assert!(error.contains("Log in to this Dhan account on Cirrus once first."), "{error}");
+}

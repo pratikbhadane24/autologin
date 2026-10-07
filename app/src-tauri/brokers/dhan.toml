@@ -1,0 +1,83 @@
+id = "dhan"
+name = "Dhan"
+kind = "browser"
+aliases = ["dhan"]
+
+# Field keys match AutoLogin 1.x, so migrated Dhan accounts work unchanged.
+[[fields]]
+key = "client_id"
+label = "Dhan Client ID"
+from_cirrus = true
+pattern = "^[A-Za-z0-9._-]{1,64}$"
+
+[[fields]]
+key = "mobile_number"
+label = "Mobile number"
+secret = true
+pattern = "^[6-9][0-9]{9}$"
+placeholder = "10-digit number registered with Dhan"
+
+[[fields]]
+key = "totp_key"
+label = "TOTP Secret"
+secret = true
+totp = true
+help = "The text key Dhan shows under the QR code when you turn on TOTP (Profile → DhanHQ Trading APIs → TOTP)."
+
+[[fields]]
+key = "mpin"
+label = "PIN"
+secret = true
+pattern = "^[0-9]{6}$"
+
+# Every login needs a fresh, single-use Dhan partner consent from Cirrus. It is
+# issued only for a Dhan client already linked to a Cirrus user (log in to
+# this account on Cirrus once by hand first).
+[[steps]]
+action = "http"
+method = "POST"
+url = "{tenant.broker_auth_api}/api/sessions/dhan/consent"
+body = "{{\"client_id\":{json:client_id}}}"
+extract = { login_url = "/data/login_url" }
+
+[[steps]]
+action = "goto"
+url = "{vars.login_url}"
+
+# Selectors follow AutoLogin 1.x's Dhan flow (mobile → TOTP boxes → PIN boxes).
+[[steps]]
+action = "type"
+sel = ["input[type=\"tel\"]", "input[type=\"text\"]"]
+value = "{mobile_number}"
+
+[[steps]]
+action = "click"
+sel = ["button[type=\"submit\"]", "text=Proceed"]
+
+[[steps]]
+action = "fill_split"
+sel = ["code-input input"]
+value = "{totp}"
+timeout_ms = 20000
+
+# The PIN screen uses the same six-box widget. Mark the TOTP boxes so the PIN
+# can only go into the new boxes Dhan shows next (never back into these).
+[[steps]]
+action = "eval"
+js = "document.querySelectorAll('code-input input').forEach((box) => box.setAttribute('data-al-used', '1'))"
+
+[[steps]]
+action = "fill_split"
+sel = ["code-input input:not([data-al-used])"]
+value = "{mpin}"
+timeout_ms = 20000
+
+# Dhan sends the browser back to Cirrus with tokenId and consentId.
+[callback]
+url_matches = "{tenant.callback_hosts}/add-broker-account/dhan"
+endpoint = "/api/sessions/dhan/refresh"
+body = { token_id = "{query.tokenId}", consent_id = "{query.consentId}" }
+
+# "Unauthorized !" is Dhan's whole page for an expired or unknown consent.
+[failure]
+text_any = ["Unauthorized !", "Invalid", "Incorrect", "blocked"]

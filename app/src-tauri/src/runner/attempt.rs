@@ -152,19 +152,26 @@ impl Attempt<'_> {
     }
 
     fn engine_error(&self, error: EngineError, credentials_entered: bool) -> AttemptError {
-        let infrastructure = matches!(
-            error,
-            EngineError::Driver(_) | EngineError::SelectorTimeout { .. } | EngineError::WaitTimeout { .. } | EngineError::Http { .. }
-        );
         // Technical detail goes to the log; the user gets what happened and what to do.
         tracing::warn!(broker = %self.manifest.id, detail = %self.redactor.apply(&error.to_string()), "browser login failed");
-        AttemptError { message: friendly_engine_message(&self.manifest.name, &error), retryable: infrastructure && !credentials_entered }
+        let retryable = is_infrastructure(&error) && !credentials_entered;
+        AttemptError { message: friendly_engine_message(&self.manifest.name, &error), retryable }
     }
 
     fn flow_error(&self, error: FlowError) -> AttemptError {
         // Only a failed *connection* proves the request never reached the broker.
         let retryable = matches!(&error, FlowError::Network { source, .. } if source.is_connect());
         AttemptError { message: self.redactor.apply(&error.to_string()), retryable }
+    }
+}
+
+/// A failure a fresh attempt might not hit (page or network trouble), as
+/// opposed to an answer: a broker or service that refused the login.
+fn is_infrastructure(error: &EngineError) -> bool {
+    match error {
+        EngineError::Driver(_) | EngineError::SelectorTimeout { .. } | EngineError::WaitTimeout { .. } => true,
+        EngineError::Http { refused, .. } => refused.is_none(),
+        _ => false,
     }
 }
 
@@ -178,7 +185,10 @@ pub fn friendly_engine_message(broker: &str, error: &EngineError) -> String {
         ),
         EngineError::ResultTimeout(_) => format!("The {broker} login didn't finish in time. {SEE_SCREENSHOT}"),
         EngineError::Driver(_) => "The browser stopped responding or its window was closed.".to_string(),
-        EngineError::Http { .. } => format!("Couldn't reach the service {broker}'s login needs. Check your internet connection."),
+        EngineError::Http { refused: Some(reason), .. } => reason.clone(),
+        EngineError::Http { refused: None, .. } => {
+            format!("Couldn't reach the service {broker}'s login needs. Check your internet connection.")
+        }
         EngineError::Template(_) | EngineError::InvalidRegex(_) | EngineError::CallbackCaptured => {
             format!("AutoLogin's {broker} setup has a problem. Update AutoLogin or report it on GitHub.")
         }
@@ -206,6 +216,21 @@ mod tests {
         assert!(!message.contains("#otpNum") && message.contains("Upstox's login page"), "{message}");
         let rejected = friendly_engine_message("Zerodha", &EngineError::BrokerRejected("Invalid TOTP".into()));
         assert_eq!(rejected, "Zerodha said: \"Invalid TOTP\"");
+    }
+
+    #[test]
+    fn a_refused_request_shows_the_services_reason_and_is_final() {
+        let refused = EngineError::Http {
+            step: 1,
+            message: "HTTP 401".into(),
+            refused: Some("Log in to this Dhan account on Cirrus once first.".into()),
+        };
+        assert_eq!(friendly_engine_message("Dhan", &refused), "Log in to this Dhan account on Cirrus once first.");
+        assert!(!is_infrastructure(&refused));
+
+        let unreachable = EngineError::Http { step: 1, message: "connection refused".into(), refused: None };
+        assert!(friendly_engine_message("Dhan", &unreachable).contains("internet connection"));
+        assert!(is_infrastructure(&unreachable));
     }
 
     #[test]
