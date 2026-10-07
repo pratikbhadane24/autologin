@@ -1,73 +1,92 @@
 id = "fivepaisa"
 name = "5Paisa"
 kind = "browser"
-# Moving to the user's own 5Paisa API app; fields and URLs to be confirmed.
-availability = "coming_soon"
 aliases = ["5paisa", "fivepaisa", "5 paisa"]
 
+# Each user logs in through their own 5Paisa API app; its key (the "UserKey")
+# opens the vendor login page. Its other keys stay on Cirrus.
 [[fields]]
 key = "client_id"
-label = "Client ID"
+label = "Client Code"
 from_cirrus = true
+pattern = "^[A-Za-z0-9._@-]{1,64}$"
 
 [[fields]]
-key = "mpin"
-label = "PIN"
-secret = true
-pattern = "^\\d{4,6}$"
+key = "api_key"
+label = "5Paisa API Key"
+from_cirrus = true
+help = "The UserKey of your own 5Paisa API app (xstream.5paisa.com). Set the app's redirect URL to https://app.cirrus.trade/add-broker-account/5paisa."
 
 [[fields]]
 key = "totp_key"
 label = "TOTP Secret"
 secret = true
 totp = true
+help = "The text key 5Paisa shows under the QR code when you turn on TOTP."
+
+[[fields]]
+key = "mpin"
+label = "PIN"
+secret = true
+pattern = "^[0-9]{6}$"
 
 [consts]
-# Same host the Cirrus backend uses for its 5Paisa vendor login.
+# Same host the Cirrus backend's own 5Paisa login link uses.
 login_base = "https://dev-openapi.5paisa.com"
-vendor_key = "TcH8gqNZb0MknbgYJrtPRMOvztGruOc8"
 
 [session]
 reset = "05:00"
 tz = "Asia/Kolkata"
 
+# ResponseURL must match the redirect registered on the user's 5Paisa app
+# exactly, so it is sent as is, the same way Cirrus does.
 [[steps]]
 action = "goto"
-url = "{consts.login_base}/WebVendorLogin/VLogin/Index?VendorKey={consts.vendor_key}&ResponseURL={tenant.cirrus_app}/add-broker-account/5paisa&State={url:client_id}"
+url = "{consts.login_base}/WebVendorLogin/VLogin/Index?VendorKey={url:api_key}&ResponseURL={tenant.cirrus_app}/add-broker-account/5paisa&State={url:client_id}"
 
-# Selectors keep v1's XPaths as the last fallback until stable CSS is
-# confirmed against the live page. fill_split targets all N boxes at once.
+# Ids from the live page's markup (2026-10-07): Login → TOTP → Enter PIN.
+# Hidden sections carry a "hide" class, so each step waits for its own boxes.
 [[steps]]
 action = "type"
-sel = ["xpath=/html/body/section/div/div/div[2]/div/div[1]/div[1]/input"]
+sel = ["#ObjVLoginModal_UserName"]
 value = "{client_id}"
 
 [[steps]]
 action = "click"
-sel = ["xpath=/html/body/section/div/div/div[2]/div/div[1]/button"]
+sel = ["#BtnGenOtp", "text=Proceed"]
 
 [[steps]]
 action = "fill_split"
-sel = ["xpath=/html/body/section/div/div/div[2]/div/div[2]/div[1]/div/div/input"]
+sel = ["#dvLoginTOTP input"]
 value = "{totp}"
+timeout_ms = 20000
 
+# The page may verify the TOTP by itself once all six digits are in.
 [[steps]]
-action = "click"
-sel = ["xpath=/html/body/section/div/div/div[2]/div/div[2]/button"]
+action = "optional"
+when = ["#btnTOTPVerify"]
+timeout_ms = 3000
+steps = [{ action = "click", sel = ["#btnTOTPVerify"] }]
 
 [[steps]]
 action = "fill_split"
-sel = ["xpath=/html/body/section/div/div/div[2]/div/div[5]/div[1]/div[1]/div/input"]
+sel = ["#dvPin input"]
 value = "{mpin}"
+timeout_ms = 20000
 
+# The page submits the PIN itself once it's complete; click only if it didn't.
 [[steps]]
-action = "click"
-sel = ["xpath=/html/body/section/div/div/div[2]/div/div[5]/div[2]/div[2]/button[2]"]
+action = "optional"
+when = ["#btnVerificationSubmit"]
+timeout_ms = 3000
+steps = [{ action = "click", sel = ["#btnVerificationSubmit"] }]
 
-[success]
-text = "Account Saved!"
-
+# 5Paisa sends the browser back to Cirrus with ?RequestToken=…; the client
+# code tells Cirrus which account's own API keys finish the login.
 [callback]
 url_matches = "{tenant.callback_hosts}/add-broker-account/5paisa"
 endpoint = "/api/sessions/fivepaisa/complete-login"
-body = { request_token = "{query.RequestToken}" }
+body = { request_token = "{query.RequestToken}", client_id = "{client_id}" }
+
+[failure]
+text_any = ["Invalid", "invalid", "Incorrect", "incorrect", "blocked", "locked"]

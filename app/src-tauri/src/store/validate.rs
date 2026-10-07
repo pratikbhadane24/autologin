@@ -96,11 +96,26 @@ pub fn validate(
 }
 
 /// Required secret fields with no saved value: the account "needs setup".
-pub fn missing_secrets(manifest: &BrokerManifest, stored_secrets: &[String]) -> Vec<String> {
+/// Required fields an account still lacks before it can log in: secrets with
+/// no saved value and plain values that are empty (e.g. an API key that an
+/// AutoLogin 1.x account never had). The client ID is stored separately and
+/// always present. Keys are in manifest order.
+pub fn missing_fields(
+    manifest: &BrokerManifest,
+    values: &std::collections::BTreeMap<String, String>,
+    stored_secrets: &[String],
+) -> Vec<String> {
     manifest
         .fields
         .iter()
-        .filter(|f| f.secret && f.required && !stored_secrets.contains(&f.key))
+        .filter(|f| f.required && f.key != "client_id")
+        .filter(|f| {
+            if f.secret {
+                !stored_secrets.contains(&f.key)
+            } else {
+                values.get(&f.key).is_none_or(|v| v.trim().is_empty())
+            }
+        })
         .map(|f| f.key.clone())
         .collect()
 }
@@ -126,6 +141,20 @@ mod tests {
             ("mpin", "123456"),
             ("totp_key", "JBSWY3DPEHPK3PXP"),
         ]
+    }
+
+    #[test]
+    fn missing_fields_covers_secrets_and_required_plain_values() {
+        let fivepaisa = ManifestBundle::bundled().unwrap().get("fivepaisa").unwrap().clone();
+        // An account from AutoLogin 1.x: PIN and TOTP saved, but no API key.
+        let migrated = missing_fields(&fivepaisa, &BTreeMap::new(), &["mpin".into(), "totp_key".into()]);
+        assert_eq!(migrated, vec!["api_key".to_string()]);
+
+        let blank_key: BTreeMap<String, String> = [("api_key".to_string(), " ".to_string())].into();
+        assert_eq!(missing_fields(&fivepaisa, &blank_key, &[]), vec!["api_key", "totp_key", "mpin"]);
+
+        let complete: BTreeMap<String, String> = [("api_key".to_string(), "KEY".to_string())].into();
+        assert!(missing_fields(&fivepaisa, &complete, &["mpin".into(), "totp_key".into()]).is_empty());
     }
 
     #[test]
@@ -165,7 +194,7 @@ mod tests {
     fn imports_may_omit_secrets_but_not_other_required_fields() {
         let no_secrets = values(&[("client_id", "UP1"), ("api_key", "key"), ("mobile_number", "9876543210")]);
         assert_eq!(validate(&upstox(), &no_secrets, &[], Completeness::AllowMissingSecrets), Ok(()));
-        assert_eq!(missing_secrets(&upstox(), &[]), vec!["mpin".to_string(), "totp_key".to_string()]);
+        assert_eq!(missing_fields(&upstox(), &no_secrets, &[]), vec!["mpin".to_string(), "totp_key".to_string()]);
         let no_api_key = values(&[("client_id", "UP1"), ("mobile_number", "9876543210")]);
         assert!(validate(&upstox(), &no_api_key, &[], Completeness::AllowMissingSecrets).is_err());
     }

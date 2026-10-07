@@ -18,8 +18,8 @@ day. AutoLogin does not ask you to sign in to Cirrus.
 
 | Broker | Status |
 |---|---|
-| Pocketful, Zerodha, Upstox, Motilal Oswal, Dhan | v2.0 |
-| Fyers and 5Paisa (with your own API app), Angel One, Nuvama, Sharekhan, Jainam Lite, Kotak Neo, Firstock | Coming in v2.1 |
+| Pocketful, Zerodha, Upstox, Motilal Oswal, Dhan, 5Paisa (with your own API app) | v2.0 |
+| Fyers (with your own API app), Angel One, Nuvama, Sharekhan, Jainam Lite, Kotak Neo, Firstock | Coming in v2.1 |
 | Groww, AliceBlue, Tradejini | Planned |
 
 Broker login steps are plain data files in
