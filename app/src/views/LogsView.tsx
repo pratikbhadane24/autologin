@@ -28,7 +28,11 @@ export function LogsView({ running }: { running: boolean }) {
     const timer = window.setInterval(load, REFRESH_MS);
     return () => window.clearInterval(timer);
   }, [running, load]);
-  useEffect(() => bottom.current?.scrollIntoView({ block: "end" }), [text]);
+  // Braces matter: newer WebViews return a Promise from scrollIntoView, and an
+  // effect that returns anything but a cleanup function crashes React.
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ block: "end" });
+  }, [text]);
 
   return (
     <div className="logs">

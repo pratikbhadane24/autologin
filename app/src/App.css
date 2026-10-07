@@ -99,3 +99,49 @@
     gap: 0;
   }
 }
+
+.tab-label-short {
+  display: none;
+}
+
+/* Phones (keep in step with PHONE_QUERY in lib/useMediaQuery.ts). */
+@media (max-width: 640px) {
+  .wordmark {
+    padding-top: var(--space-3);
+  }
+  .tabs {
+    width: 100%;
+  }
+  .tab {
+    flex: 1;
+    min-height: var(--touch-target);
+    padding: var(--space-3) var(--space-1);
+    white-space: nowrap;
+  }
+  /* The full label stays for screen readers; the short one is what fits. */
+  .tab-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .tab-label-short {
+    display: inline;
+  }
+
+  .banner {
+    flex-wrap: wrap;
+  }
+
+  .toast {
+    width: max-content;
+    max-width: calc(100% - 2 * var(--space-4));
+    text-align: center;
+  }
+
+  .fatal {
+    padding: var(--space-5) var(--space-4);
+  }
+}

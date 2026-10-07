@@ -47,38 +47,3 @@
   padding-block: calc(var(--space-3) - 7px);
 }
 
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 600;
-}
-.status::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
-}
-.status-ok {
-  color: var(--ok);
-}
-.status-fail {
-  color: var(--fail);
-}
-.status-warn {
-  color: var(--warn);
-}
-.status-busy {
-  color: var(--primary);
-}
-.status-idle {
-  color: var(--ink-soft);
-}
-
-.status-detail {
-  display: block;
-  color: var(--ink-soft);
-  font-size: var(--step--1);
-  max-width: 46ch;
-}

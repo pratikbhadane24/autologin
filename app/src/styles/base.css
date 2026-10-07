@@ -148,3 +148,20 @@ textarea {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-control);
 }
+
+/* Phones (keep in step with PHONE_QUERY in lib/useMediaQuery.ts): finger-sized
+   controls, and long button labels wrap instead of widening the page. */
+@media (max-width: 640px) {
+  .button {
+    min-height: var(--touch-target);
+    justify-content: center;
+    white-space: normal;
+    text-align: center;
+  }
+  .button.link {
+    min-height: 0;
+  }
+  .input {
+    min-height: var(--touch-target);
+  }
+}

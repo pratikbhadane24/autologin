@@ -1,0 +1,127 @@
+.account-cards {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.account-cards-all {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--touch-target);
+  padding-left: var(--space-3);
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+  font-weight: 600;
+  justify-self: start;
+}
+
+.account-card-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.account-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--touch-target) minmax(0, 1fr) auto;
+  align-items: start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  /* No top padding: the 44px title row already gives the card its top air. */
+  padding: 0 var(--space-3) var(--space-3) 0;
+}
+.account-card.selected {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+}
+/* The open button's outline would only ring the title; ring the whole card instead. */
+.account-card:has(.account-card-open:focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Sits above the stretched open button so taps on it toggle selection. */
+.account-card-check {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  cursor: pointer;
+}
+.account-card-check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.account-card-main {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.account-card-title {
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.account-card-open {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  min-height: var(--touch-target);
+  align-content: center;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  font-weight: 600;
+  cursor: pointer;
+}
+.account-card-open:focus-visible {
+  outline: none;
+}
+.account-card-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-panel);
+}
+
+.account-card-client {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.account-card-status {
+  display: flex;
+}
+
+.account-card .status-detail {
+  max-width: none;
+}
+
+.account-card-meta {
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+}
+
+.account-card-chevron {
+  display: grid;
+  place-items: center;
+  height: var(--touch-target);
+  padding-left: var(--space-2);
+  color: var(--ink-soft);
+  font-size: var(--step-2);
+  line-height: 1;
+}

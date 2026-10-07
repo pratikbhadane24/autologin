@@ -53,3 +53,16 @@
 .phone-needs li + li {
   border-top: 1px solid var(--line);
 }
+
+/* Phones (keep in step with PHONE_QUERY in lib/useMediaQuery.ts). */
+@media (max-width: 640px) {
+  .phone-needs li {
+    flex-wrap: wrap;
+  }
+  .phone-needs li .button {
+    flex: 1 1 auto;
+  }
+  .phone-mode label {
+    min-height: var(--touch-target);
+  }
+}

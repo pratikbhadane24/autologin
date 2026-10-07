@@ -25,6 +25,7 @@
   --step-0: 0.95rem;
   --step-1: 1.15rem;
   --step-2: 1.4rem;
+  --step-3: 1.7rem;
   --step-4: 2.2rem;
 
   --space-1: 4px;
@@ -34,6 +35,9 @@
   --space-5: 24px;
   --space-6: 32px;
   --space-7: 48px;
+
+  /* Smallest tap target on phones. */
+  --touch-target: 44px;
 
   --radius-control: 6px;
   --radius-panel: 10px;

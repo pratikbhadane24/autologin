@@ -86,3 +86,31 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/* Phones (keep in step with PHONE_QUERY in lib/useMediaQuery.ts). */
+@media (max-width: 640px) {
+  .settings {
+    padding: var(--space-5) 0;
+  }
+  .toggle-row {
+    min-height: var(--touch-target);
+    align-items: flex-start;
+    padding-block: var(--space-2);
+  }
+  .toggle-row input {
+    margin-top: 0.3em;
+  }
+  .schedule-row {
+    gap: var(--space-4);
+  }
+  .day {
+    min-height: var(--touch-target);
+    padding-inline: var(--space-3);
+  }
+  .field.narrow {
+    max-width: none;
+  }
+  .settings .button-row .button {
+    flex: 1 1 auto;
+  }
+}

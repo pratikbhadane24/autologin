@@ -21,10 +21,11 @@ import { formatNextRun, SettingsView } from "./views/SettingsView";
 import "./App.css";
 
 type Tab = "accounts" | "settings" | "activity";
-const TABS: { id: Tab; label: string }[] = [
-  { id: "accounts", label: "Accounts" },
-  { id: "settings", label: "Schedule & settings" },
-  { id: "activity", label: "Activity log" },
+// `short` fits three tabs across a phone screen; screen readers always get `label`.
+const TABS: { id: Tab; label: string; short: string }[] = [
+  { id: "accounts", label: "Accounts", short: "Accounts" },
+  { id: "settings", label: "Schedule & settings", short: "Settings" },
+  { id: "activity", label: "Activity log", short: "Activity" },
 ];
 const TOAST_MS = 4000;
 
@@ -195,7 +196,10 @@ export default function App() {
         <nav className="tabs" aria-label="Sections">
           {TABS.map((t) => (
             <button key={t.id} className="tab" aria-current={tab === t.id ? "page" : undefined} onClick={() => setTab(t.id)}>
-              {t.label}
+              <span className="tab-label">{t.label}</span>
+              <span className="tab-label-short" aria-hidden="true">
+                {t.short}
+              </span>
             </button>
           ))}
         </nav>

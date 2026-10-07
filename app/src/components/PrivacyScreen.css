@@ -27,7 +27,7 @@
 
 .privacy-points {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: var(--space-5) var(--space-6);
 }
 .privacy-points h2 {
@@ -39,4 +39,22 @@
   display: flex;
   gap: var(--space-3);
   align-items: center;
+}
+
+/* Phones (keep in step with PHONE_QUERY in lib/useMediaQuery.ts). */
+@media (max-width: 640px) {
+  .privacy-backdrop {
+    padding: var(--space-5) var(--space-4);
+    place-items: start center;
+  }
+  .privacy {
+    gap: var(--space-4);
+  }
+  .privacy h1 {
+    font-size: var(--step-3);
+  }
+  .privacy-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }

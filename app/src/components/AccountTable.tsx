@@ -1,9 +1,13 @@
+import { accountName, allSelected, statusOf } from "../lib/accountStatus";
 import { relativeTime } from "../lib/hooks";
 import type { LiveAccount } from "../lib/runState";
 import type { Account } from "../lib/types";
+import { PHONE_QUERY, useMediaQuery } from "../lib/useMediaQuery";
+import { AccountCards } from "./AccountCards";
+import "./AccountStatus.css";
 import "./AccountTable.css";
 
-interface Props {
+export interface AccountListProps {
   accounts: Account[];
   live: Record<number, LiveAccount>;
   selected: Set<number>;
@@ -14,29 +18,13 @@ interface Props {
   onEdit: (account: Account) => void;
 }
 
-interface StatusView {
-  tone: "ok" | "fail" | "warn" | "busy" | "idle";
-  text: string;
-  detail: string | null;
+/** The account list: a table on wide screens, cards on phones. */
+export function AccountTable(props: AccountListProps) {
+  const isPhone = useMediaQuery(PHONE_QUERY);
+  return isPhone ? <AccountCards {...props} /> : <AccountRows {...props} />;
 }
 
-export function statusOf(account: Account, live?: LiveAccount): StatusView {
-  if (live?.phase === "running") {
-    return { tone: "busy", text: live.attempt > 1 ? `Logging in (try ${live.attempt})` : "Logging in", detail: null };
-  }
-  if (live?.phase === "skipped") return { tone: "warn", text: "Skipped", detail: live.message };
-  if (live?.phase === "failed") return { tone: "fail", text: "Failed", detail: live.message };
-  if (live?.phase === "ok") return { tone: "ok", text: "Logged in", detail: null };
-  if (account.coming_soon) return { tone: "idle", text: "Coming soon", detail: `${account.broker_name} support is on its way.` };
-  if (account.missing.length > 0) return { tone: "warn", text: "Needs setup", detail: `Add ${account.missing.join(", ")}.` };
-  if (account.effective_status === "logged_in") return { tone: "ok", text: "Logged in", detail: null };
-  if (account.effective_status === "failed") return { tone: "fail", text: "Failed", detail: account.last_error };
-  if (account.status === "logged_in") return { tone: "idle", text: "Session expired", detail: null };
-  return { tone: "idle", text: "Not logged in", detail: null };
-}
-
-export function AccountTable({ accounts, live, selected, showWorkspace, tenantName, onToggle, onToggleAll, onEdit }: Props) {
-  const allSelected = accounts.length > 0 && accounts.every((a) => selected.has(a.id));
+function AccountRows({ accounts, live, selected, showWorkspace, tenantName, onToggle, onToggleAll, onEdit }: AccountListProps) {
   return (
     <table className="accounts">
       <thead>
@@ -45,7 +33,7 @@ export function AccountTable({ accounts, live, selected, showWorkspace, tenantNa
             <input
               type="checkbox"
               aria-label="Select all accounts"
-              checked={allSelected}
+              checked={allSelected(accounts, selected)}
               onChange={(e) => onToggleAll(e.target.checked)}
             />
           </th>
@@ -67,7 +55,7 @@ export function AccountTable({ accounts, live, selected, showWorkspace, tenantNa
               <td className="col-check">
                 <input
                   type="checkbox"
-                  aria-label={`Select ${account.broker_name} ${account.client_id}`}
+                  aria-label={`Select ${accountName(account)}`}
                   checked={selected.has(account.id)}
                   onChange={() => onToggle(account.id)}
                 />

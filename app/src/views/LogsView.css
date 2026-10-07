@@ -20,3 +20,17 @@
   word-break: break-word;
   min-height: 240px;
 }
+
+/* Phones (keep in step with PHONE_QUERY in lib/useMediaQuery.ts). */
+@media (max-width: 640px) {
+  .logs {
+    padding: var(--space-5) 0;
+  }
+  .logs .button-row .button {
+    flex: 1 1 auto;
+  }
+  .log-text {
+    padding: var(--space-3);
+    font-size: 11px;
+  }
+}

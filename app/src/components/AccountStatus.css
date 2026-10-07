@@ -1,0 +1,59 @@
+/* Account status, shared by the desktop table and the phone cards. */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.status::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.status-ok {
+  color: var(--ok);
+}
+.status-fail {
+  color: var(--fail);
+}
+.status-warn {
+  color: var(--warn);
+}
+.status-busy {
+  color: var(--primary);
+}
+.status-idle {
+  color: var(--ink-soft);
+}
+
+/* Pill variant for the phone cards: the tone's soft colour behind the text. */
+.status.pill {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: var(--step--1);
+  background: var(--sunken);
+}
+.status.pill.status-ok {
+  background: var(--ok-soft);
+}
+.status.pill.status-fail {
+  background: var(--fail-soft);
+}
+.status.pill.status-warn {
+  background: var(--warn-soft);
+}
+.status.pill.status-busy {
+  background: var(--primary-soft);
+}
+
+.status-detail {
+  display: block;
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+  max-width: 46ch;
+  /* Failure messages can carry long tokens (URLs, IDs): wrap them, never widen the page. */
+  overflow-wrap: anywhere;
+}
