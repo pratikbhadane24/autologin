@@ -2,7 +2,6 @@
 //! Each flow reads endpoints and app ids from the manifest `[consts]` and
 //! returns the `{vars.*}` its manifest steps need (see `http_flow_outputs`).
 
-mod fyers;
 mod motilal;
 
 use std::collections::HashMap;
@@ -33,8 +32,7 @@ pub enum FlowError {
     Rejected { step: &'static str, message: String },
 }
 
-/// Redirects are disabled because Fyers answers the token call with a 308
-/// whose JSON body carries the auth code.
+/// Redirects are not followed: a flow reads each broker answer as sent.
 pub fn client() -> reqwest::Client {
     reqwest::Client::builder()
         .timeout(REQUEST_TIMEOUT)
@@ -49,7 +47,6 @@ pub async fn run(
     client: &reqwest::Client,
 ) -> Result<HashMap<String, String>, FlowError> {
     match flow {
-        "fyers" => fyers::run(ctx, client).await,
         "motilal" => motilal::run(ctx, client).await,
         other => Err(FlowError::UnknownFlow(other.to_string())),
     }

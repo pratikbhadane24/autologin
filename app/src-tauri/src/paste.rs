@@ -394,8 +394,11 @@ mod tests {
 
     #[test]
     fn flags_coming_soon_brokers() {
-        let result = parse_signed(r#"{"broker":"fyers","client_id":"XA1"}"#).unwrap();
+        let mut bundle = bundle();
+        bundle.brokers.get_mut("fyers").unwrap().availability = Availability::ComingSoon;
+        let result = parse_with_keys(&signed(r#"{"broker":"fyers","client_id":"XA1"}"#), &bundle, &trusted()).unwrap();
         assert!(result.accounts[0].coming_soon);
+        assert!(!parse_signed(r#"{"broker":"fyers","client_id":"XA1"}"#).unwrap().accounts[0].coming_soon);
     }
 
     #[test]

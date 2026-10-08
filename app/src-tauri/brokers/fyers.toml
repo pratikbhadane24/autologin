@@ -1,41 +1,110 @@
 id = "fyers"
 name = "Fyers"
-kind = "http"
-flow = "fyers"
-# The shared-app flow below no longer works; Fyers will move to the user's
-# own API app. Kept for reference, skipped by the runner until then.
-availability = "coming_soon"
+kind = "browser"
 aliases = ["fyers"]
 
+# Each user logs in through their own Fyers API app (myapi.fyers.in). Its App
+# ID opens Fyers' login page; its secret stays on Cirrus.
 [[fields]]
 key = "client_id"
 label = "Fyers ID"
 from_cirrus = true
+pattern = "^[A-Za-z0-9]{1,32}$"
 
 [[fields]]
-key = "mpin"
-label = "PIN"
-secret = true
-pattern = "^\\d{4}$"
+key = "api_key"
+label = "Fyers App ID"
+from_cirrus = true
+placeholder = "XB12345-100"
+help = "The App ID of your own Fyers API app (myapi.fyers.in). Set the app's redirect URL to https://app.cirrus.trade/add-broker-account/fyers."
 
 [[fields]]
 key = "totp_key"
 label = "TOTP Secret"
 secret = true
 totp = true
+help = "The text key Fyers shows under the QR code when you turn on External 2FA TOTP."
 
-[consts]
-vagator_base = "https://api-t2.fyers.in/vagator/v2"
-api_base = "https://api-t1.fyers.in/api/v3"
-app_id = "YPUVOWAXFE-100"
-app_type = "102"
-redirect_uri = "{tenant.tradinx_app}/broker-login/fyers-login"
-state = "sample_state"
+[[fields]]
+key = "mpin"
+label = "PIN"
+secret = true
+pattern = "^[0-9]{4}$"
 
 [session]
 reset = "05:00"
 tz = "Asia/Kolkata"
 
+# Same login link the Cirrus backend builds; state carries the Fyers ID back.
+[[steps]]
+action = "goto"
+url = "https://api-t1.fyers.in/api/v3/generate-authcode?client_id={url:api_key}&redirect_uri={tenant.cirrus_app}/add-broker-account/fyers&response_type=code&state={url:client_id}"
+
+# Selectors from the live page's markup (2026-10-08). The page repeats ids
+# (#first, #fy_client_id ...) across its hidden screens, so the code boxes are
+# found by class; only visible elements match.
+#
+# Fyers' page loads a Cloudflare Turnstile check. Usually it passes by itself;
+# now and then it may need a manual click in the browser window.
+
+# The page opens on mobile-number login; switch to Client ID.
+[[steps]]
+action = "optional"
+when = ["#clientId_rb"]
+timeout_ms = 5000
+steps = [{ action = "click", sel = ["#clientId_rb", "text=Client ID"] }]
+
+[[steps]]
+action = "type"
+sel = ["#clientid-input-section #fy_client_id", "#fy_client_id"]
+value = "{client_id}"
+
+[[steps]]
+action = "click"
+sel = ["#clientIdSubmit"]
+
+[[steps]]
+action = "fill_split"
+sel = ["input.otp-field"]
+value = "{totp}"
+timeout_ms = 20000
+
+# The page may confirm the TOTP by itself once all six digits are in.
+[[steps]]
+action = "optional"
+when = ["#confirmOtpSubmit"]
+timeout_ms = 3000
+steps = [{ action = "click", sel = ["#confirmOtpSubmit"] }]
+
+[[steps]]
+action = "fill_split"
+sel = ["input.pin-field"]
+value = "{mpin}"
+timeout_ms = 20000
+
+# The last PIN box submits by itself (data-autosubmit); click only if it didn't.
+[[steps]]
+action = "optional"
+when = ["#verifyPinSubmit"]
+timeout_ms = 3000
+steps = [{ action = "click", sel = ["#verifyPinSubmit"] }]
+
+# Fyers sends the browser back to Cirrus with ?auth_code=…&state=<Fyers ID>.
 [callback]
+url_matches = "{tenant.callback_hosts}/add-broker-account/fyers"
 endpoint = "/api/sessions/fyers/callback"
-body = { auth_code = "{vars.auth_code}", state = "{client_id}" }
+body = { auth_code = "{query.auth_code}", state = "{client_id}" }
+
+# Messages from Fyers' login script (login.min.js).
+[failure]
+text_any = [
+  "Invalid Client ID",
+  "Invalid TOTP",
+  "Invalid OTP",
+  "OTP Expired",
+  "Incorrect PIN",
+  "Wrong PIN",
+  "Account Blocked",
+  "Your Session Expired",
+  "Invalid request",
+]

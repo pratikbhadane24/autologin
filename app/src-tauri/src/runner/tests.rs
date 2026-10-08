@@ -131,8 +131,10 @@ async fn unknown_account_on_cirrus_gets_first_login_hint() {
 #[tokio::test]
 async fn skips_accounts_that_cannot_run_with_reasons() {
     let dir = tempfile::tempdir().unwrap();
-    let deps = deps(ManifestBundle::bundled().unwrap(), dir.path());
-    let fyers = add(&deps, "fyers", &[("client_id", "XA1"), ("mpin", "1234"), ("totp_key", TOTP)]);
+    let mut bundle = ManifestBundle::bundled().unwrap();
+    bundle.brokers.get_mut("fyers").unwrap().availability = crate::broker::manifest::Availability::ComingSoon;
+    let deps = deps(bundle, dir.path());
+    let fyers = add(&deps, "fyers", &[("client_id", "XA1"), ("api_key", "XB1-100"), ("mpin", "1234"), ("totp_key", TOTP)]);
     let pocketful = add(&deps, "pocketful", &[("client_id", "P1")]);
     let (events, emit) = collect_events();
 

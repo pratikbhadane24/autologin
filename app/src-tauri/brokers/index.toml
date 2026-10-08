@@ -18,8 +18,6 @@ broker_auth_api = "https://broker-auth-api.cirrus.trade"
 # Regex prefix matching this tenant's callback pages (any subdomain).
 callback_hosts = "^https://([a-z0-9-]+\\.)?cirrus\\.trade"
 pocketful_app_id = "dZCQSOGrV1"
-# Fyers' old shared-app redirect (Fyers is "coming soon").
-tradinx_app = "https://app.tradinx.in"
 
 [tenants.pocketful]
 name = "Pocketful"
@@ -28,4 +26,3 @@ cirrus_app = "https://cirrus.pocketful.in"
 broker_auth_api = "https://broker-auth-api.cirrus.trade"
 callback_hosts = "^https://cirrus\\.pocketful\\.in"
 pocketful_app_id = "N6DKVVOmCe"
-tradinx_app = "https://app.tradinx.in"
