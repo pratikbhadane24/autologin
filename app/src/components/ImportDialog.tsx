@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "../lib/api";
 import type { CommandError, FileKind, ImportReport } from "../lib/types";
 import { Modal } from "./Modal";
+import { SecretInput } from "./SecretInput";
 
 interface Props {
   onClose: () => void;
@@ -93,7 +94,7 @@ export function ImportDialog({ onClose, onImported }: Props) {
       {kind === "encrypted" && (
         <div className="field">
           <label htmlFor="import-password">Backup password</label>
-          <input id="import-password" className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <SecretInput id="import-password" label="Backup password" value={password} onChange={setPassword} />
         </div>
       )}
       {error && <p className="form-error" role="alert">{error}</p>}

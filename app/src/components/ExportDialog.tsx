@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "../lib/api";
 import type { CommandError, ExportFormat } from "../lib/types";
 import { Modal } from "./Modal";
+import { SecretInput } from "./SecretInput";
 
 const MIN_PASSWORD = 8;
 
@@ -22,7 +23,7 @@ const FORMATS: { value: ExportFormat; title: string; detail: string; extension: 
   {
     value: "csv",
     title: "Spreadsheet (CSV) without secrets",
-    detail: "Broker, client ID and API keys only. You'll re-enter passwords, PINs and TOTP secrets after importing.",
+    detail: "Broker, client ID, name and API keys only. You'll re-enter passwords, PINs and TOTP secrets after importing.",
     extension: "csv",
   },
 ];
@@ -94,11 +95,11 @@ export function ExportDialog({ onClose, onDone }: Props) {
         <>
           <div className="field">
             <label htmlFor="export-password">Backup password</label>
-            <input id="export-password" className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <SecretInput id="export-password" label="Backup password" value={password} onChange={setPassword} />
           </div>
           <div className="field">
             <label htmlFor="export-confirm">Type it again</label>
-            <input id="export-confirm" className="input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+            <SecretInput id="export-confirm" label="Backup password again" value={confirm} onChange={setConfirm} />
             {password && passwordProblem && <span className="error">{passwordProblem}</span>}
             <span className="hint">There is no way to recover this password. Without it the backup can't be opened.</span>
           </div>
