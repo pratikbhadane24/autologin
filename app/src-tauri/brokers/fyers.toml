@@ -1,6 +1,11 @@
 id = "fyers"
 name = "Fyers"
 kind = "browser"
+# Fyers' login page asks for a human verification (captcha) that AutoLogin
+# must not solve or evade, so daily logins can't run unattended. Kept off
+# until Fyers offers an unattended login for API apps; the flow below works
+# up to that check (verified 2026-10-08).
+availability = "coming_soon"
 aliases = ["fyers"]
 
 # Each user logs in through their own Fyers API app (myapi.fyers.in). Its App

@@ -23,7 +23,7 @@ export const RELEASES: Release[] = [
         mobile:
           "Schedule a daily login — 8:45 AM is recommended. A notification starts it with one tap, or AutoLogin can log in by itself.",
       },
-      "Dhan, 5Paisa, Fyers and Tradejini accounts log in too.",
+      "Dhan, 5Paisa and Tradejini accounts log in too.",
       "Motilal Oswal's new login needs your API Secret: add it to each Motilal account.",
       "Add accounts by sending them from Cirrus, or by pasting.",
       "Move to a new computer or phone with a password-protected backup.",
