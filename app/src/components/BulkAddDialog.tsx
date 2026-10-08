@@ -144,10 +144,17 @@ export function BulkAddDialog({ catalog, paste, onClose, onDone }: Props) {
                   )}
                 </div>
                 {row.pasted.already_added ? (
-                  <p className="muted bulk-existing">
-                    Already in AutoLogin. Its details from Cirrus (like the API key) will be updated; saved passwords
-                    stay.
-                  </p>
+                  <div className="bulk-existing">
+                    <p className="muted">
+                      Already in AutoLogin. Anything it's missing is filled in from Cirrus; saved passwords stay.
+                    </p>
+                    {row.pasted.kept_values.length > 0 && (
+                      <p className="notice">
+                        Cirrus has a different {row.pasted.kept_values.join(", ")}. AutoLogin kept the one you saved;
+                        edit the account if you want to change it.
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   <div className="bulk-fields">
                     {fieldsToFill(catalog, row.pasted).map((field) => {

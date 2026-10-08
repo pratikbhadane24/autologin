@@ -79,9 +79,12 @@ pub struct PastedAccount {
     pub ignored: Vec<String>,
     pub coming_soon: bool,
     /// Already in AutoLogin (same workspace, broker and client ID); adding
-    /// it again refreshes Cirrus's values and keeps the saved secrets. Set by
-    /// the command, which can see the accounts.
+    /// it again only fills values it is missing. Set by the command, which
+    /// can see the accounts.
     pub already_added: bool,
+    /// Labels of saved values the paste has differently. They are kept (a
+    /// paste never replaces e.g. an API key); shown so the user can edit.
+    pub kept_values: Vec<String>,
 }
 
 /// An entry that could not be used, with a user-facing reason.
@@ -255,6 +258,7 @@ fn parse_entry(entry: &Value, bundle: &ManifestBundle) -> Result<Result<PastedAc
         ignored,
         coming_soon: manifest.availability == Availability::ComingSoon,
         already_added: false,
+        kept_values: Vec::new(),
     }))
 }
 

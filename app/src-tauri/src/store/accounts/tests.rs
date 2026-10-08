@@ -146,28 +146,47 @@ fn login_values_reports_lost_secrets_clearly() {
 }
 
 #[test]
-fn add_or_refresh_updates_cirrus_values_and_keeps_saved_secrets() {
+fn add_or_refresh_fills_only_missing_values_and_never_replaces_saved_ones() {
     let fx = Fixture::new();
-    let original = fx.accounts().create(&zerodha("cirrus", "AB1"), Completeness::Strict).unwrap();
+    // Saved without an API key (like an AutoLogin 1.x account).
+    let mut no_key = zerodha("cirrus", "AB1");
+    no_key.values.remove("api_key");
+    let original = fx.accounts().create(&no_key, Completeness::AllowMissing).unwrap();
 
-    // Pasted again from Cirrus: a new API key, nothing typed for the secrets.
-    let pasted = AccountInput {
+    let paste = |api_key: &str| AccountInput {
         tenant_id: "cirrus".into(),
         broker_id: "zerodha".into(),
-        values: [("client_id", "AB1"), ("api_key", "new_key"), ("password", "")]
+        values: [("client_id", "AB1"), ("api_key", api_key), ("password", "")]
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect(),
     };
-    let (refreshed, created) = fx.accounts().add_or_refresh(&pasted).unwrap();
 
+    // The missing key is filled in; saved secrets stay.
+    let (filled, created) = fx.accounts().add_or_refresh(&paste("cirrus_key")).unwrap();
     assert!(!created);
-    assert_eq!(refreshed.id, original.id);
-    assert_eq!(refreshed.fields["api_key"], "new_key");
-    let secrets = fx.secrets.load(&fx.conn, &refreshed.key()).unwrap();
+    assert_eq!(filled.id, original.id);
+    assert_eq!(filled.fields["api_key"], "cirrus_key");
+    let secrets = fx.secrets.load(&fx.conn, &filled.key()).unwrap();
     assert_eq!(secrets["password"], "pw-123");
     assert_eq!(secrets["totp_key"], "JBSWY3DPEHPK3PXP");
+
+    // A different key later (e.g. from someone else's copy) never replaces it:
+    // the API key decides which app the broker sends the login to.
+    let (kept, _) = fx.accounts().add_or_refresh(&paste("other_key")).unwrap();
+    assert_eq!(kept.fields["api_key"], "cirrus_key");
     assert_eq!(fx.accounts().list().unwrap().len(), 1);
+}
+
+#[test]
+fn values_differing_from_a_paste_are_reported() {
+    let fx = Fixture::new();
+    let saved = fx.accounts().create(&zerodha("cirrus", "AB1"), Completeness::Strict).unwrap();
+    let pasted: BTreeMap<String, String> =
+        [("client_id", "AB1"), ("api_key", "other_key")].iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+    assert_eq!(super::differing_values(&saved, &pasted), vec!["api_key".to_string()]);
+    let same: BTreeMap<String, String> = [("api_key".to_string(), "kite_key".to_string())].into();
+    assert!(super::differing_values(&saved, &same).is_empty());
 }
 
 #[test]

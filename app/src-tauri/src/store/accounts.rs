@@ -159,9 +159,12 @@ impl<'a> Accounts<'a> {
         self.bundle.get(&input.broker_id).ok_or_else(|| AccountError::UnknownBroker(input.broker_id.clone()))
     }
 
-    /// Add a pasted account, or refresh it if it's already here: non-empty
-    /// incoming values (e.g. a new API key from Cirrus) replace the saved
-    /// ones, and saved secrets stay. Returns the account and whether it is new.
+    /// Add a pasted account, or refresh it if it's already here. A refresh
+    /// only fills values the account doesn't have yet (e.g. the API key a
+    /// 1.x account never had). It never replaces a saved value: the API key
+    /// decides which app the broker sends the login to, so changing it takes
+    /// a deliberate edit, not a paste. Saved secrets stay. Returns the
+    /// account and whether it is new.
     pub fn add_or_refresh(&self, input: &AccountInput) -> Result<(Account, bool), AccountError> {
         let manifest = self.manifest(input)?;
         let values = validate::normalize(&input.values);
@@ -172,7 +175,12 @@ impl<'a> Accounts<'a> {
         };
         let mut merged = existing.fields.clone();
         merged.insert(CLIENT_ID.to_string(), existing.client_id.clone());
-        merged.extend(values.into_iter().filter(|(_, value)| !value.trim().is_empty()));
+        for (field, value) in values {
+            let saved_is_empty = merged.get(&field).is_none_or(|saved| saved.trim().is_empty());
+            if saved_is_empty && !value.trim().is_empty() {
+                merged.insert(field, value);
+            }
+        }
         let refreshed = self.update(existing.id, &AccountInput { values: merged, ..input.clone() }, Completeness::AllowMissing)?;
         Ok((refreshed, false))
     }
@@ -309,6 +317,17 @@ impl<'a> Accounts<'a> {
 }
 
 /// Split values into (non-secret fields without client_id, secrets).
+/// Saved plain values that a paste would set differently (a paste never
+/// replaces them; the dialog tells the user so they can edit on purpose).
+pub fn differing_values(saved: &Account, pasted: &BTreeMap<String, String>) -> Vec<String> {
+    pasted
+        .iter()
+        .filter(|(key, value)| key.as_str() != CLIENT_ID && !value.trim().is_empty())
+        .filter(|(key, value)| saved.fields.get(*key).is_some_and(|old| !old.trim().is_empty() && old.trim() != value.trim()))
+        .map(|(key, _)| key.clone())
+        .collect()
+}
+
 fn split(manifest: &BrokerManifest, values: &BTreeMap<String, String>) -> (BTreeMap<String, String>, Secrets) {
     let is_secret = |key: &str| manifest.field(key).is_some_and(|f| f.secret);
     let fields = values.iter().filter(|(k, _)| *k != CLIENT_ID && !is_secret(k)).map(clone_pair).collect();

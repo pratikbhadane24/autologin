@@ -144,7 +144,8 @@ pub fn delete_accounts(state: State<'_, AppState>, ids: Vec<i64>) -> CmdResult<u
 
 #[tauri::command]
 pub fn parse_paste(state: State<'_, AppState>, text: String) -> CmdResult<PasteResult> {
-    let mut result = paste::parse(&text, &state.bundle()).map_err(|e| CommandError::msg(e.to_string()))?;
+    let bundle = state.bundle();
+    let mut result = paste::parse(&text, &bundle).map_err(|e| CommandError::msg(e.to_string()))?;
     with_accounts(&state, |accounts| {
         for pasted in &mut result.accounts {
             let key = AccountKey {
@@ -152,7 +153,13 @@ pub fn parse_paste(state: State<'_, AppState>, text: String) -> CmdResult<PasteR
                 broker_id: pasted.broker_id.clone(),
                 client_id: pasted.fields.get("client_id").cloned().unwrap_or_default(),
             };
-            pasted.already_added = accounts.find(&key)?.is_some();
+            let Some(saved) = accounts.find(&key)? else { continue };
+            pasted.already_added = true;
+            let manifest = bundle.get(&pasted.broker_id);
+            pasted.kept_values = crate::store::accounts::differing_values(&saved, &pasted.fields)
+                .into_iter()
+                .map(|key| manifest.and_then(|m| m.field(&key)).map_or(key.clone(), |f| f.label.clone()))
+                .collect();
         }
         Ok(())
     })?;

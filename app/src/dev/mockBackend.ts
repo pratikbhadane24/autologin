@@ -87,10 +87,10 @@ export function installMockBackend() {
         case "parse_paste":
           return {
             accounts: [
-              { tenant_id: "cirrus", broker_id: "pocketful", fields: { client_id: "PK00999" }, ignored: [], coming_soon: false, already_added: false },
-              { tenant_id: "cirrus", broker_id: "zerodha", fields: { client_id: "AB1234", api_key: "kite_key" }, ignored: ["api_secret"], coming_soon: false, already_added: true },
-              { tenant_id: "pocketful", broker_id: "pocketful", fields: { client_id: "PK00999" }, ignored: [], coming_soon: false, already_added: false },
-              { tenant_id: "cirrus", broker_id: "fyers", fields: { client_id: "XA00451" }, ignored: [], coming_soon: true, already_added: false },
+              { tenant_id: "cirrus", broker_id: "pocketful", fields: { client_id: "PK00999" }, ignored: [], coming_soon: false, already_added: false, kept_values: [] },
+              { tenant_id: "cirrus", broker_id: "zerodha", fields: { client_id: "AB1234", api_key: "kite_key" }, ignored: ["api_secret"], coming_soon: false, already_added: true, kept_values: ["Kite API Key"] },
+              { tenant_id: "pocketful", broker_id: "pocketful", fields: { client_id: "PK00999" }, ignored: [], coming_soon: false, already_added: false, kept_values: [] },
+              { tenant_id: "cirrus", broker_id: "fyers", fields: { client_id: "XA00451" }, ignored: [], coming_soon: true, already_added: false, kept_values: [] },
             ],
             problems: [],
             issued_to: "demo_user",

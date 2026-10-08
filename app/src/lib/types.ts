@@ -135,8 +135,10 @@ export interface PastedAccount {
   fields: Record<string, string>;
   ignored: string[];
   coming_soon: boolean;
-  /** Already in AutoLogin: adding refreshes Cirrus's values, keeps secrets. */
+  /** Already in AutoLogin: adding only fills values it's missing. */
   already_added: boolean;
+  /** Labels of saved values the paste has differently; they're kept. */
+  kept_values: string[];
 }
 
 export interface PasteResult {
