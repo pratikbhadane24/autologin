@@ -62,6 +62,9 @@ pub struct BackupAccount {
     pub tenant_id: String,
     pub broker_id: String,
     pub client_id: String,
+    /// The account's name (Cirrus's "Account Tag"). Older backups have none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
     #[serde(default)]
     pub fields: BTreeMap<String, String>,
     #[serde(default)]
@@ -156,8 +159,11 @@ pub fn export_plain(data: &BackupData) -> String {
     serde_json::to_string_pretty(&file).expect("backup file always serializes")
 }
 
-/// CSV of non-secret details: tenant, broker, client_id, then one column per
-/// non-secret field used by any exported account.
+/// CSV header for the account tag (the name Cirrus uses for it).
+pub const CSV_TAG_COLUMN: &str = "Account Tag";
+
+/// CSV of non-secret details: tenant, broker, client_id, the account tag, then
+/// one column per non-secret field used by any exported account.
 pub fn export_csv(accounts: &[BackupAccount]) -> String {
     let field_columns: Vec<String> = accounts
         .iter()
@@ -166,12 +172,17 @@ pub fn export_csv(accounts: &[BackupAccount]) -> String {
         .into_iter()
         .collect();
     let mut writer = csv::Writer::from_writer(Vec::new());
-    let header = ["tenant", "broker", "client_id"].into_iter().map(str::to_string).chain(field_columns.clone());
+    let header = ["tenant", "broker", "client_id", CSV_TAG_COLUMN].into_iter().map(str::to_string).chain(field_columns.clone());
     writer.write_record(header).expect("in-memory write");
     for account in accounts {
-        let row = [account.tenant_id.clone(), account.broker_id.clone(), account.client_id.clone()]
-            .into_iter()
-            .chain(field_columns.iter().map(|c| account.fields.get(c).cloned().unwrap_or_default()));
+        let row = [
+            account.tenant_id.clone(),
+            account.broker_id.clone(),
+            account.client_id.clone(),
+            account.tag.clone().unwrap_or_default(),
+        ]
+        .into_iter()
+        .chain(field_columns.iter().map(|c| account.fields.get(c).cloned().unwrap_or_default()));
         writer.write_record(row).expect("in-memory write");
     }
     String::from_utf8(writer.into_inner().expect("in-memory flush")).expect("CSV of UTF-8 strings is UTF-8")
@@ -267,6 +278,7 @@ mod tests {
                 tenant_id: "cirrus".into(),
                 broker_id: "zerodha".into(),
                 client_id: "AB1".into(),
+                tag: Some("Pratik D".into()),
                 fields: [("api_key".to_string(), "kite".to_string())].into(),
                 secrets: [("password".to_string(), "s3cret-pw".to_string())].into(),
             }],
@@ -333,8 +345,17 @@ mod tests {
     #[test]
     fn csv_has_no_secrets() {
         let csv = export_csv(&data().accounts);
-        assert_eq!(csv, "tenant,broker,client_id,api_key\ncirrus,zerodha,AB1,kite\n");
+        assert_eq!(csv, "tenant,broker,client_id,Account Tag,api_key\ncirrus,zerodha,AB1,Pratik D,kite\n");
         assert_eq!(detect(&csv), Ok(FileKind::Csv));
+    }
+
+    #[test]
+    fn backups_from_before_tags_still_read() {
+        let mut old: serde_json::Value = serde_json::from_str(&export_plain(&data())).unwrap();
+        old["accounts"][0].as_object_mut().unwrap().remove("tag");
+        let read = read_backup(&old.to_string(), None).unwrap();
+        assert_eq!(read.accounts[0].tag, None);
+        assert_eq!(read.accounts[0].client_id, "AB1");
     }
 
     #[test]

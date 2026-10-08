@@ -116,10 +116,11 @@ mod tests {
     #[test]
     fn consts_can_reference_tenant_values() {
         let bundle = ManifestBundle::bundled().unwrap();
-        let fyers = bundle.get("fyers").unwrap();
+        let mut fyers = bundle.get("fyers").unwrap().clone();
+        fyers.consts.insert("redirect_uri".into(), "{tenant.cirrus_app}/add-broker-account/fyers".into());
         let account = AccountValues::new();
-        let ctx = TemplateContext::new(fyers, &bundle, &account);
-        assert_eq!(ctx.konst("redirect_uri").unwrap(), "https://app.tradinx.in/broker-login/fyers-login");
+        let ctx = TemplateContext::new(&fyers, &bundle, &account);
+        assert_eq!(ctx.konst("redirect_uri").unwrap(), "https://app.cirrus.trade/add-broker-account/fyers");
     }
 
     #[test]

@@ -61,7 +61,10 @@ function AccountRows({ accounts, live, selected, showWorkspace, tenantName, onTo
                 />
               </td>
               <td className="broker">{account.broker_name}</td>
-              <td>{account.client_id}</td>
+              <td>
+                {account.client_id}
+                {account.tag && <span className="account-tag">{account.tag}</span>}
+              </td>
               {showWorkspace && <td>{tenantName(account.tenant_id)}</td>}
               <td>
                 <span className={`status status-${status.tone}`}>{status.text}</span>

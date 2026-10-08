@@ -11,6 +11,7 @@ const upstox: Account = {
   tenant_id: "cirrus",
   broker_id: "upstox",
   client_id: "7HQ2LP",
+  tag: null,
   fields: {},
   secret_keys: ["password"],
   status: "failed",
@@ -66,6 +67,20 @@ describe("AccountTable", () => {
     expect(screen.getByText("Failed")).toBeTruthy();
     expect(screen.getByText(LONG_ERROR)).toBeTruthy();
     expect(screen.getByText("Last login: Never")).toBeTruthy();
+  });
+
+  it("shows each account's name under its client ID, on wide screens and phones", () => {
+    const tagged = { ...upstox, tag: "Vinit ant" };
+    setViewport(false);
+    renderList({ accounts: [tagged] });
+    expect(screen.getByText("Vinit ant")).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Select Upstox 7HQ2LP (Vinit ant)" })).toBeTruthy();
+    cleanup();
+
+    setViewport(true);
+    renderList({ accounts: [tagged] });
+    expect(screen.getByText("Vinit ant")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Edit Upstox 7HQ2LP (Vinit ant)" })).toBeTruthy();
   });
 
   it("opens the drawer and toggles selection from a card", () => {

@@ -53,6 +53,14 @@ action = "type"
 sel = ["#otpNum"]
 value = "{totp}"
 
+# Upstox now waits for Continue after the code (seen 2026-10-08) instead of
+# moving on by itself; click it unless the PIN screen is already showing.
+[[steps]]
+action = "optional"
+when = ["#continueBtn"]
+timeout_ms = 3000
+steps = [{ action = "click", sel = ["#continueBtn", "text=Continue"] }]
+
 # Replaces v1's 3 x (10s wait + 10s sleep) retry loop.
 [[steps]]
 action = "type"

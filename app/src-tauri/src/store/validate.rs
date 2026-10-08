@@ -38,14 +38,35 @@ pub fn normalize(values: &BTreeMap<String, String>) -> BTreeMap<String, String> 
         .collect()
 }
 
-/// How strictly `required` applies to secret fields.
+/// Longest account tag (the user's name for an account; Cirrus's "Account Tag").
+pub const MAX_TAG_CHARS: usize = 64;
+/// Key under which tag problems are reported, next to the form's Name field.
+pub const TAG_FIELD: &str = "tag";
+
+/// Check and tidy an account tag: trimmed, empty means none, at most
+/// `MAX_TAG_CHARS` characters and no control characters (tabs, newlines...).
+pub fn normalize_tag(tag: Option<&str>) -> Result<Option<String>, String> {
+    let Some(tag) = tag.map(str::trim).filter(|t| !t.is_empty()) else {
+        return Ok(None);
+    };
+    if tag.chars().count() > MAX_TAG_CHARS {
+        return Err(format!("Name can be at most {MAX_TAG_CHARS} characters"));
+    }
+    if tag.chars().any(char::is_control) {
+        return Err("Name can't contain tabs, line breaks or other control characters".into());
+    }
+    Ok(Some(tag.to_string()))
+}
+
+/// How strictly `required` applies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Completeness {
     /// Every required field must be present (Add/Edit form).
     Strict,
-    /// Secrets may be missing (imports without secrets); the account is
-    /// saved as "needs setup" and skipped by runs until completed.
-    AllowMissingSecrets,
+    /// Anything but the client ID may be missing (imports, Cirrus paste);
+    /// the account is saved as "needs setup" and skipped by runs until
+    /// completed. Values that are given are still checked.
+    AllowMissing,
 }
 
 /// Check `values` (already normalized). `stored_secrets` names secret fields
@@ -67,7 +88,7 @@ pub fn validate(
     for field in &manifest.fields {
         let Some(value) = values.get(&field.key) else {
             let already_saved = field.secret && stored_secrets.contains(&field.key);
-            let may_be_missing = field.secret && completeness == Completeness::AllowMissingSecrets;
+            let may_be_missing = completeness == Completeness::AllowMissing && field.key != "client_id";
             if field.required && !already_saved && !may_be_missing {
                 errors.add(&field.key, format!("{} is required", field.label));
             }
@@ -158,6 +179,19 @@ mod tests {
     }
 
     #[test]
+    fn tags_are_trimmed_limited_and_free_of_control_characters() {
+        assert_eq!(normalize_tag(None), Ok(None));
+        assert_eq!(normalize_tag(Some("   ")), Ok(None));
+        assert_eq!(normalize_tag(Some("  Pratik D ")), Ok(Some("Pratik D".into())));
+        let longest = "é".repeat(MAX_TAG_CHARS);
+        assert_eq!(normalize_tag(Some(&longest)), Ok(Some(longest.clone())));
+        assert!(normalize_tag(Some(&format!("{longest}x"))).unwrap_err().contains("64"));
+        assert!(normalize_tag(Some("Pratik\nD")).is_err());
+        assert!(normalize_tag(Some("Pratik\tD")).is_err());
+        assert!(normalize_tag(Some("Pratik\u{7}D")).is_err());
+    }
+
+    #[test]
     fn accepts_complete_valid_values() {
         assert_eq!(validate(&upstox(), &values(&complete()), &[], Completeness::Strict), Ok(()));
     }
@@ -191,11 +225,20 @@ mod tests {
     }
 
     #[test]
-    fn imports_may_omit_secrets_but_not_other_required_fields() {
+    fn imports_may_omit_anything_but_the_client_id() {
         let no_secrets = values(&[("client_id", "UP1"), ("api_key", "key"), ("mobile_number", "9876543210")]);
-        assert_eq!(validate(&upstox(), &no_secrets, &[], Completeness::AllowMissingSecrets), Ok(()));
+        assert_eq!(validate(&upstox(), &no_secrets, &[], Completeness::AllowMissing), Ok(()));
         assert_eq!(missing_fields(&upstox(), &no_secrets, &[]), vec!["mpin".to_string(), "totp_key".to_string()]);
-        let no_api_key = values(&[("client_id", "UP1"), ("mobile_number", "9876543210")]);
-        assert!(validate(&upstox(), &no_api_key, &[], Completeness::AllowMissingSecrets).is_err());
+        // Values the user types (mobile number) or Cirrus didn't have (API key)
+        // may be added later too; the account shows "Needs setup" until then.
+        let only_client = values(&[("client_id", "UP1")]);
+        assert_eq!(validate(&upstox(), &only_client, &[], Completeness::AllowMissing), Ok(()));
+        assert_eq!(missing_fields(&upstox(), &only_client, &[]), vec!["api_key", "mobile_number", "mpin", "totp_key"]);
+        assert!(validate(&upstox(), &only_client, &[], Completeness::Strict).is_err());
+        let no_client = values(&[("api_key", "key")]);
+        assert!(validate(&upstox(), &no_client, &[], Completeness::AllowMissing).is_err());
+        // Whatever is given is still checked.
+        let bad_mobile = values(&[("client_id", "UP1"), ("mobile_number", "123")]);
+        assert!(validate(&upstox(), &bad_mobile, &[], Completeness::AllowMissing).is_err());
     }
 }

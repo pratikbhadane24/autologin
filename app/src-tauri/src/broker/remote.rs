@@ -254,7 +254,8 @@ mod tests {
                 let name = entry.file_name().into_string().unwrap();
                 let text = std::fs::read_to_string(entry.path()).unwrap();
                 let text = if name == "index.toml" {
-                    text.replace("manifest_version = 1", &format!("manifest_version = {version}"))
+                    let bundled = regex::Regex::new(r"(?m)^manifest_version = \d+$").unwrap();
+                    bundled.replace(&text, format!("manifest_version = {version}")).into_owned()
                 } else {
                     text
                 };

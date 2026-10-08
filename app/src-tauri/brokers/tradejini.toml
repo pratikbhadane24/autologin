@@ -1,0 +1,140 @@
+id = "tradejini"
+name = "Tradejini"
+kind = "browser"
+aliases = ["tradejini", "trade jini", "cubeplus"]
+
+# NEEDS A LIVE CHECK: the login page's selectors below are unverified with a
+# real API key (a dummy key gets a 401 before any page). They come from
+# reading CubePlus' web bundle (cubeplus.tradejini.com, v0.0.132, 2026-10-08):
+# the OAuth login is CubePlus' /sso screens, which reuse its login form
+# (User ID + 4-digit PIN boxes, then six TOTP boxes). Each step lists
+# fallbacks by name, type and text in case the markup differs.
+
+# Each user logs in through their own Tradejini API app (developer.tradejini.com).
+# Its API key opens the login page; its secret stays on Cirrus.
+[[fields]]
+key = "client_id"
+label = "Tradejini User ID"
+from_cirrus = true
+pattern = "^[A-Za-z0-9]{1,32}$"
+
+[[fields]]
+key = "api_key"
+label = "Tradejini API Key"
+from_cirrus = true
+help = "The API key of your own Tradejini API app (developer.tradejini.com). Set the app's redirect URL to https://app.cirrus.trade/add-broker-account/tradejini."
+
+# CubePlus' login form calls this the PIN (4 boxes) and sends it as the API's
+# "password". No pattern, in case some accounts still use a longer password.
+[[fields]]
+key = "password"
+label = "Login PIN"
+secret = true
+help = "The 4-digit PIN (or password) you log in to CubePlus with."
+
+[[fields]]
+key = "totp_key"
+label = "TOTP Secret"
+secret = true
+totp = true
+help = "The text key Tradejini shows under the QR code when you turn on TOTP."
+
+[session]
+reset = "05:00"
+tz = "Asia/Kolkata"
+
+# Same login link the Cirrus backend builds; state carries the User ID back.
+[[steps]]
+action = "goto"
+url = "https://api.tradejini.com/v2/api-gw/oauth/authorize?client_id={url:api_key}&redirect_uri={tenant.cirrus_app}/add-broker-account/tradejini&response_type=code&scope=general&state={url:client_id}"
+
+# `fill` replaces a User ID the page may have filled in already.
+[[steps]]
+action = "fill"
+sel = [
+  "#USER_ID",
+  "input[name=\"USER_ID\"]",
+  "input[data-cy=\"fp-userid\"]",
+  "input[placeholder*=\"User ID\" i]",
+  "input[name*=\"user\" i]",
+]
+value = "{client_id}"
+timeout_ms = 20000
+
+# One box per digit (CubePlus today) ...
+[[steps]]
+action = "optional"
+when = [
+  "input[data-cy=\"login-pin\"]",
+  "input[data-cy=\"login-password\"]",
+  "input[name=\"PIN\"]",
+  "input[type=\"password\"][maxlength=\"1\"]",
+]
+timeout_ms = 10000
+steps = [{ action = "fill_split", sel = [
+  "input[data-cy=\"login-pin\"]",
+  "input[data-cy=\"login-password\"]",
+  "input[name=\"PIN\"]",
+  "input[type=\"password\"][maxlength=\"1\"]",
+], value = "{password}" }]
+
+# ... or a single password box.
+[[steps]]
+action = "optional"
+when = ["input[type=\"password\"]:not([maxlength=\"1\"])"]
+timeout_ms = 1000
+steps = [{ action = "fill", sel = ["input[type=\"password\"]:not([maxlength=\"1\"])"], value = "{password}" }]
+
+[[steps]]
+action = "click"
+sel = ["[data-cy=\"login-submit-btn\"]", "button[type=\"submit\"]", "text=Login"]
+
+# The 2FA screen opens on TOTP or on SMS/email OTP, depending on the account.
+[[steps]]
+action = "wait_for"
+sel = [
+  "input[data-cy=\"validate-otp\"]",
+  "input[name=\"otp\"]",
+  "input[name=\"OTP\"]",
+  "input[id^=\"OTP\"]",
+]
+timeout_ms = 20000
+
+[[steps]]
+action = "optional"
+when = ["[data-cy=\"validate-totp-btn\"]"]
+timeout_ms = 1500
+steps = [{ action = "click", sel = ["[data-cy=\"validate-totp-btn\"]"] }]
+
+# The page submits the code itself once all six digits are in, so there is
+# no click: a second submit would send the same code again.
+[[steps]]
+action = "fill_split"
+sel = [
+  "input[data-cy=\"validate-otp\"]",
+  "input[name=\"otp\"]",
+  "input[name=\"OTP\"]",
+  "input[id^=\"OTP\"]",
+]
+value = "{totp}"
+
+# Tradejini sends the browser back to Cirrus with ?code=…&state=<User ID>.
+[callback]
+url_matches = "{tenant.callback_hosts}/add-broker-account/tradejini"
+endpoint = "/api/sessions/tradejini/callback"
+body = { client_id = "{client_id}", code = "{query.code}" }
+
+# "Unauthorized" is the authorize endpoint's answer to an unknown API key;
+# "Session is expired." is CubePlus' SSO error page. Others are shown in a
+# toast and come from Tradejini's API (unverified wording).
+[failure]
+text_any = [
+  "Unauthorized",
+  "Session is expired",
+  "Invalid",
+  "invalid",
+  "Incorrect",
+  "incorrect",
+  "blocked",
+  "locked",
+]

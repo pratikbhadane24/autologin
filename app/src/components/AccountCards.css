@@ -103,6 +103,13 @@
   color: var(--ink-soft);
 }
 
+/* Pulled up under the title row, which is a full 44px tall. */
+.account-card-tag {
+  margin-top: calc(-1 * var(--space-2));
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
 .account-card-status {
   display: flex;
 }

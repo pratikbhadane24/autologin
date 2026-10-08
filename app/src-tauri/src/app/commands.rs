@@ -19,6 +19,7 @@ use crate::paste::{self, PasteResult};
 use crate::runner::artifacts::FAILURES_DIR;
 use crate::runner::Trigger;
 use crate::store::accounts::{AccountError, AccountInput, Accounts};
+use crate::store::secrets::AccountKey;
 use crate::store::backup::{self, FileKind};
 use crate::store::transfer::{self, ImportReport};
 use crate::store::validate::{Completeness, FieldErrors};
@@ -26,6 +27,8 @@ use crate::store::validate::{Completeness, FieldErrors};
 /// Largest file accepted for import (backups are a few KB per account).
 const MAX_IMPORT_BYTES: u64 = 10 * 1024 * 1024;
 const MAX_LOG_LINES: usize = 2_000;
+/// How the account tag is named when a paste has a different one.
+const TAG_LABEL: &str = "Account Tag";
 
 #[derive(Debug, Serialize)]
 pub struct CommandError {
@@ -98,28 +101,32 @@ pub struct BulkRowError {
 #[derive(Debug, Serialize)]
 pub struct BulkResult {
     pub added: Vec<AccountView>,
+    /// Accounts that were already here: Cirrus's values refreshed, secrets kept.
+    pub updated: Vec<AccountView>,
     pub errors: Vec<BulkRowError>,
 }
 
-/// Add several accounts at once (bulk paste from Cirrus). Rows whose secrets
-/// are left blank are still added and shown as "Needs setup".
+/// Add several accounts at once (bulk paste from Cirrus). Rows with values
+/// left blank are still added and shown as "Needs setup"; accounts already
+/// here are refreshed with Cirrus's values and keep their saved secrets.
 #[tauri::command]
 pub fn add_accounts(state: State<'_, AppState>, inputs: Vec<AccountInput>) -> CmdResult<BulkResult> {
     let bundle = state.bundle();
     let outcomes = with_accounts(&state, |accounts| {
         Ok(inputs
             .iter()
-            .map(|input| accounts.create(input, Completeness::AllowMissingSecrets))
+            .map(|input| accounts.add_or_refresh(input))
             .collect::<Vec<_>>())
     })?;
-    let mut result = BulkResult { added: Vec::new(), errors: Vec::new() };
+    let mut result = BulkResult { added: Vec::new(), updated: Vec::new(), errors: Vec::new() };
     for (index, outcome) in outcomes.into_iter().enumerate() {
         match outcome {
-            Ok(account) => result.added.push(views::account_view(account, &bundle)),
+            Ok((account, true)) => result.added.push(views::account_view(account, &bundle)),
+            Ok((account, false)) => result.updated.push(views::account_view(account, &bundle)),
             Err(error) => result.errors.push(BulkRowError { index, error: error.into() }),
         }
     }
-    tracing::info!(added = result.added.len(), failed = result.errors.len(), "bulk add");
+    tracing::info!(added = result.added.len(), updated = result.updated.len(), failed = result.errors.len(), "bulk add");
     Ok(result)
 }
 
@@ -139,7 +146,29 @@ pub fn delete_accounts(state: State<'_, AppState>, ids: Vec<i64>) -> CmdResult<u
 
 #[tauri::command]
 pub fn parse_paste(state: State<'_, AppState>, text: String) -> CmdResult<PasteResult> {
-    paste::parse(&text, &state.bundle()).map_err(|e| CommandError::msg(e.to_string()))
+    let bundle = state.bundle();
+    let mut result = paste::parse(&text, &bundle).map_err(|e| CommandError::msg(e.to_string()))?;
+    with_accounts(&state, |accounts| {
+        for pasted in &mut result.accounts {
+            let key = AccountKey {
+                tenant_id: pasted.tenant_id.clone(),
+                broker_id: pasted.broker_id.clone(),
+                client_id: pasted.fields.get("client_id").cloned().unwrap_or_default(),
+            };
+            let Some(saved) = accounts.find(&key)? else { continue };
+            pasted.already_added = true;
+            let manifest = bundle.get(&pasted.broker_id);
+            pasted.kept_values = crate::store::accounts::differing_values(&saved, &pasted.fields)
+                .into_iter()
+                .map(|key| manifest.and_then(|m| m.field(&key)).map_or(key.clone(), |f| f.label.clone()))
+                .collect();
+            if crate::store::accounts::tag_differs(&saved, pasted.tag.as_deref()) {
+                pasted.kept_values.push(TAG_LABEL.to_string());
+            }
+        }
+        Ok(())
+    })?;
+    Ok(result)
 }
 
 // ---- runs ----

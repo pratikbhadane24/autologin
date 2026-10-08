@@ -34,12 +34,13 @@ fn add(deps: &RunnerDeps, broker: &str, values: &[(&str, &str)]) -> i64 {
         tenant_id: "cirrus".into(),
         broker_id: broker.into(),
         values: values.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<BTreeMap<_, _>>(),
+        tag: None,
     };
-    deps.with_accounts(|a| a.create(&input, Completeness::AllowMissingSecrets)).unwrap().id
+    deps.with_accounts(|a| a.create(&input, Completeness::AllowMissing)).unwrap().id
 }
 
 fn motilal(deps: &RunnerDeps) -> i64 {
-    add(deps, "motilal", &[("client_id", "EMUM1"), ("api_key", "KEY"), ("password", "pw"), ("dob", "01/01/1990"), ("totp_key", TOTP)])
+    add(deps, "motilal", &[("client_id", "EMUM1"), ("api_key", "KEY"), ("api_secret", "SECRET"), ("password", "pw"), ("dob", "01/01/1990"), ("totp_key", TOTP)])
 }
 
 fn options() -> RunOptions {
@@ -94,11 +95,13 @@ async fn broker_rejection_is_never_retried() {
     let dir = tempfile::tempdir().unwrap();
     let deps = deps(bundle_for(&server.uri()), dir.path());
     let id = motilal(&deps);
+    deps.conn.lock().unwrap().execute("UPDATE accounts SET tag = 'Pratik D' WHERE id = ?1", [id]).unwrap();
 
     let summary = run(&deps, &[id], &options(), &CancellationToken::new(), |_| {}).await;
 
     assert_eq!(summary.failed, 1);
-    assert_eq!(summary.failed_accounts, vec!["Motilal Oswal EMUM1".to_string()]);
+    // The notification names the account the way the user knows it.
+    assert_eq!(summary.failed_accounts, vec!["Motilal Oswal EMUM1 (Pratik D)".to_string()]);
     let account = deps.with_accounts(|a| a.get(id)).unwrap();
     assert_eq!(account.status, LoginStatus::Failed);
     assert_eq!(account.last_error.as_deref(), Some("authdirectapi rejected: Invalid password"));
@@ -128,8 +131,10 @@ async fn unknown_account_on_cirrus_gets_first_login_hint() {
 #[tokio::test]
 async fn skips_accounts_that_cannot_run_with_reasons() {
     let dir = tempfile::tempdir().unwrap();
-    let deps = deps(ManifestBundle::bundled().unwrap(), dir.path());
-    let fyers = add(&deps, "fyers", &[("client_id", "XA1"), ("mpin", "1234"), ("totp_key", TOTP)]);
+    let mut bundle = ManifestBundle::bundled().unwrap();
+    bundle.brokers.get_mut("fyers").unwrap().availability = crate::broker::manifest::Availability::ComingSoon;
+    let deps = deps(bundle, dir.path());
+    let fyers = add(&deps, "fyers", &[("client_id", "XA1"), ("api_key", "XB1-100"), ("mpin", "1234"), ("totp_key", TOTP)]);
     let pocketful = add(&deps, "pocketful", &[("client_id", "P1")]);
     let (events, emit) = collect_events();
 
@@ -148,6 +153,24 @@ async fn skips_accounts_that_cannot_run_with_reasons() {
     assert_eq!(reasons[0], "Fyers support is coming soon.");
     assert_eq!(reasons[1], "Needs setup: add Password, PIN.");
     assert_eq!(reasons[2], "account not found");
+}
+
+#[tokio::test]
+async fn motilal_account_without_api_secret_needs_setup() {
+    let dir = tempfile::tempdir().unwrap();
+    let deps = deps(ManifestBundle::bundled().unwrap(), dir.path());
+    // Saved before Motilal's v7 login made the API secret mandatory.
+    let fields = [("client_id", "EMUM1"), ("api_key", "KEY"), ("password", "pw"), ("dob", "01/01/1990"), ("totp_key", TOTP)];
+    let id = add(&deps, "motilal", &fields);
+    let (events, emit) = collect_events();
+
+    let summary = run(&deps, &[id], &options(), &CancellationToken::new(), emit).await;
+
+    assert_eq!(summary.skipped, 1);
+    let skipped = events.lock().unwrap().iter().any(|e| {
+        matches!(e, RunEvent::AccountSkipped { reason, .. } if reason == "Needs setup: add API Secret.")
+    });
+    assert!(skipped);
 }
 
 #[tokio::test]

@@ -183,6 +183,8 @@ fn to_backup_account(record: &BTreeMap<String, Value>, broker_id: &str, bundle: 
         tenant_id: bundle.default_tenant().to_string(),
         broker_id: broker_id.to_string(),
         client_id,
+        // AutoLogin 1.x had no name for an account.
+        tag: None,
         fields,
         secrets,
     })
@@ -278,6 +280,7 @@ mod tests {
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
+            tag: None,
         };
         let existing = accounts.create(&input, Completeness::Strict).unwrap();
 

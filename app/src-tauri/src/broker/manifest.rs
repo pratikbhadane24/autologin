@@ -450,7 +450,6 @@ impl BrokerManifest {
 /// The `{vars.*}` each Rust HTTP flow produces.
 pub fn http_flow_outputs(flow: &str) -> Option<&'static [&'static str]> {
     match flow {
-        "fyers" => Some(&["auth_code"]),
         "motilal" => Some(&["auth_token"]),
         _ => None,
     }
@@ -609,8 +608,8 @@ text = "Account Saved!"
     fn http_broker_exposes_flow_outputs() {
         let mut manifest = angel();
         manifest.kind = BrokerKind::Http;
-        manifest.flow = Some("fyers".into());
-        manifest.steps = vec![Step::Goto { url: "{tenant.cirrus_base}/fyers?auth_code={vars.auth_code}".into() }];
+        manifest.flow = Some("motilal".into());
+        manifest.steps = vec![Step::Goto { url: "{tenant.cirrus_base}/motilal?token={vars.auth_token}".into() }];
         assert!(manifest.validate(&tenant()).is_ok());
 
         manifest.flow = Some("nope".into());
@@ -648,7 +647,7 @@ text = "Account Saved!"
 
         let mut manifest = angel();
         manifest.kind = BrokerKind::Http;
-        manifest.flow = Some("fyers".into());
+        manifest.flow = Some("motilal".into());
         let mut callback = upstox_callback();
         callback.url_matches = None;
         manifest.callback = Some(callback);

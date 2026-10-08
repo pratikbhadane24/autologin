@@ -8,6 +8,7 @@ function account(overrides: Partial<Account> = {}): Account {
     tenant_id: "cirrus",
     broker_id: "zerodha",
     client_id: "AB1",
+    tag: null,
     fields: {},
     secret_keys: ["password"],
     status: "logged_out",
@@ -55,6 +56,12 @@ describe("statusOf", () => {
 describe("accountName", () => {
   it("joins broker and client ID", () => {
     expect(accountName(account({ broker_name: "Upstox", client_id: "7HQ2LP" }))).toBe("Upstox 7HQ2LP");
+  });
+
+  it("adds the account's name when it has one", () => {
+    expect(accountName(account({ broker_name: "Zerodha", client_id: "ZGN479", tag: "Pratik D" }))).toBe(
+      "Zerodha ZGN479 (Pratik D)",
+    );
   });
 });
 

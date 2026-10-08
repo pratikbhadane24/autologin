@@ -25,9 +25,10 @@ export function statusOf(account: Account, live?: LiveAccount): StatusView {
   return { tone: "idle", text: "Not logged in", detail: null };
 }
 
-/** "Zerodha AB1234": names an account in labels like "Select …" and "Edit …". */
-export function accountName(account: Account): string {
-  return `${account.broker_name} ${account.client_id}`;
+/** "Zerodha AB1234 (Pratik D)": names an account in labels like "Select …" and "Edit …". */
+export function accountName(account: Pick<Account, "broker_name" | "client_id" | "tag">): string {
+  const name = `${account.broker_name} ${account.client_id}`;
+  return account.tag ? `${name} (${account.tag})` : name;
 }
 
 /** True when there is at least one account and every one of them is selected. */

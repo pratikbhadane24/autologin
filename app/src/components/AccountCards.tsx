@@ -38,6 +38,7 @@ export function AccountCards({ accounts, live, selected, showWorkspace, tenantNa
                     {account.broker_name} <span className="account-card-client">{account.client_id}</span>
                   </button>
                 </h3>
+                {account.tag && <p className="account-card-tag">{account.tag}</p>}
                 {showWorkspace && <p className="account-card-meta">{tenantName(account.tenant_id)}</p>}
                 <p className="account-card-status">
                   <span className={`status pill status-${status.tone}`}>{status.text}</span>

@@ -42,6 +42,8 @@ export interface Account {
   tenant_id: string;
   broker_id: string;
   client_id: string;
+  /** The user's name for the account (Cirrus's "Account Tag"), e.g. "Pratik D". */
+  tag: string | null;
   fields: Record<string, string>;
   secret_keys: string[];
   status: LoginStatus;
@@ -58,6 +60,8 @@ export interface AccountInput {
   tenant_id: string;
   broker_id: string;
   values: Record<string, string>;
+  /** Omitted keeps the saved name; empty clears it. */
+  tag?: string | null;
 }
 
 export type Weekday = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
@@ -133,8 +137,14 @@ export interface PastedAccount {
   tenant_id: string;
   broker_id: string;
   fields: Record<string, string>;
+  /** Cirrus's "Account Tag", to prefill the name. */
+  tag: string | null;
   ignored: string[];
   coming_soon: boolean;
+  /** Already in AutoLogin: adding only fills values it's missing. */
+  already_added: boolean;
+  /** Labels of saved values the paste has differently; they're kept. */
+  kept_values: string[];
 }
 
 export interface PasteResult {
@@ -174,5 +184,6 @@ export type UpdateStatus =
 
 export interface BulkResult {
   added: Account[];
+  updated: Account[];
   errors: { index: number; error: CommandError }[];
 }
