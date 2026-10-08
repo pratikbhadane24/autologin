@@ -35,6 +35,13 @@
   font-weight: 600;
 }
 
+.accounts .account-tag {
+  display: block;
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+  overflow-wrap: anywhere;
+}
+
 .col-check {
   width: 36px;
 }

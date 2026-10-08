@@ -38,6 +38,26 @@ pub fn normalize(values: &BTreeMap<String, String>) -> BTreeMap<String, String> 
         .collect()
 }
 
+/// Longest account tag (the user's name for an account; Cirrus's "Account Tag").
+pub const MAX_TAG_CHARS: usize = 64;
+/// Key under which tag problems are reported, next to the form's Name field.
+pub const TAG_FIELD: &str = "tag";
+
+/// Check and tidy an account tag: trimmed, empty means none, at most
+/// `MAX_TAG_CHARS` characters and no control characters (tabs, newlines...).
+pub fn normalize_tag(tag: Option<&str>) -> Result<Option<String>, String> {
+    let Some(tag) = tag.map(str::trim).filter(|t| !t.is_empty()) else {
+        return Ok(None);
+    };
+    if tag.chars().count() > MAX_TAG_CHARS {
+        return Err(format!("Name can be at most {MAX_TAG_CHARS} characters"));
+    }
+    if tag.chars().any(char::is_control) {
+        return Err("Name can't contain tabs, line breaks or other control characters".into());
+    }
+    Ok(Some(tag.to_string()))
+}
+
 /// How strictly `required` applies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Completeness {
@@ -156,6 +176,19 @@ mod tests {
 
         let complete: BTreeMap<String, String> = [("api_key".to_string(), "KEY".to_string())].into();
         assert!(missing_fields(&fivepaisa, &complete, &["mpin".into(), "totp_key".into()]).is_empty());
+    }
+
+    #[test]
+    fn tags_are_trimmed_limited_and_free_of_control_characters() {
+        assert_eq!(normalize_tag(None), Ok(None));
+        assert_eq!(normalize_tag(Some("   ")), Ok(None));
+        assert_eq!(normalize_tag(Some("  Pratik D ")), Ok(Some("Pratik D".into())));
+        let longest = "é".repeat(MAX_TAG_CHARS);
+        assert_eq!(normalize_tag(Some(&longest)), Ok(Some(longest.clone())));
+        assert!(normalize_tag(Some(&format!("{longest}x"))).unwrap_err().contains("64"));
+        assert!(normalize_tag(Some("Pratik\nD")).is_err());
+        assert!(normalize_tag(Some("Pratik\tD")).is_err());
+        assert!(normalize_tag(Some("Pratik\u{7}D")).is_err());
     }
 
     #[test]

@@ -9,6 +9,7 @@ function account(overrides: Partial<Account> = {}): Account {
     tenant_id: "cirrus",
     broker_id: "zerodha",
     client_id: "AB1",
+    tag: null,
     fields: {},
     secret_keys: ["password", "totp_key"],
     status: "logged_out",

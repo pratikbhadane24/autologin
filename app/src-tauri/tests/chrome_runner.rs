@@ -45,6 +45,7 @@ async fn runner_logs_in_with_browser_and_reports_to_cirrus() {
             ("password".into(), "s3cret!".into()),
             ("mpin".into(), "4321".into()),
         ]),
+        tag: None,
     };
     let id = {
         let conn = deps.conn.lock().unwrap();

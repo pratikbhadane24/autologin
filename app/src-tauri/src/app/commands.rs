@@ -27,6 +27,8 @@ use crate::store::validate::{Completeness, FieldErrors};
 /// Largest file accepted for import (backups are a few KB per account).
 const MAX_IMPORT_BYTES: u64 = 10 * 1024 * 1024;
 const MAX_LOG_LINES: usize = 2_000;
+/// How the account tag is named when a paste has a different one.
+const TAG_LABEL: &str = "Account Tag";
 
 #[derive(Debug, Serialize)]
 pub struct CommandError {
@@ -160,6 +162,9 @@ pub fn parse_paste(state: State<'_, AppState>, text: String) -> CmdResult<PasteR
                 .into_iter()
                 .map(|key| manifest.and_then(|m| m.field(&key)).map_or(key.clone(), |f| f.label.clone()))
                 .collect();
+            if crate::store::accounts::tag_differs(&saved, pasted.tag.as_deref()) {
+                pasted.kept_values.push(TAG_LABEL.to_string());
+            }
         }
         Ok(())
     })?;

@@ -1,9 +1,12 @@
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { useEffect, useMemo, useState } from "react";
+import { accountName } from "../lib/accountStatus";
 import { api } from "../lib/api";
 import { DEVICE } from "../lib/platform";
 import type { Account, Catalog, CommandError, FieldSpec, PastedAccount } from "../lib/types";
+import { SecretInput } from "./SecretInput";
+import { TagInput } from "./TagInput";
 import "./AccountDrawer.css";
 
 interface Props {
@@ -22,6 +25,8 @@ export function AccountDrawer({ catalog, account, onClose, onSaved }: Props) {
   const [brokerId, setBrokerId] = useState(account?.broker_id ?? firstBroker);
   const [tenantId, setTenantId] = useState(account?.tenant_id ?? catalog.default_tenant);
   const [values, setValues] = useState<Record<string, string>>(() => initialValues(account));
+  const [tag, setTag] = useState(account?.tag ?? "");
+  const [pastedTag, setPastedTag] = useState<string | null>(null);
   const [fromCirrus, setFromCirrus] = useState<Set<string>>(new Set());
   const [queue, setQueue] = useState<PastedAccount[]>([]);
   const [error, setError] = useState<CommandError | null>(null);
@@ -40,6 +45,8 @@ export function AccountDrawer({ catalog, account, onClose, onSaved }: Props) {
     setBrokerId(pasted.broker_id);
     setTenantId(pasted.tenant_id);
     setValues(pasted.fields);
+    setTag(pasted.tag ?? "");
+    setPastedTag(pasted.tag);
     setFromCirrus(new Set(Object.keys(pasted.fields)));
     setError(null);
   }
@@ -66,10 +73,10 @@ export function AccountDrawer({ catalog, account, onClose, onSaved }: Props) {
   async function save() {
     setSaving(true);
     setError(null);
-    const input = { tenant_id: tenantId, broker_id: brokerId, values };
+    const input = { tenant_id: tenantId, broker_id: brokerId, values, tag };
     try {
       const saved = editing ? await api.updateAccount(account.id, input) : await api.createAccount(input);
-      const label = `${saved.broker_name} ${saved.client_id}`;
+      const label = accountName(saved);
       const [next, ...rest] = queue;
       if (next) {
         applyPasted(next);
@@ -89,7 +96,7 @@ export function AccountDrawer({ catalog, account, onClose, onSaved }: Props) {
 
   async function remove() {
     if (!account) return;
-    const confirmed = await ask(`Delete ${account.broker_name} ${account.client_id}? Its saved password, PIN and TOTP secret are removed from this ${DEVICE}.`, {
+    const confirmed = await ask(`Delete ${accountName(account)}? Its saved password, PIN and TOTP secret are removed from this ${DEVICE}.`, {
       title: "Delete account",
       kind: "warning",
       okLabel: "Delete account",
@@ -97,7 +104,7 @@ export function AccountDrawer({ catalog, account, onClose, onSaved }: Props) {
     if (!confirmed) return;
     try {
       await api.deleteAccounts([account.id]);
-      onSaved(`Deleted ${account.broker_name} ${account.client_id}`);
+      onSaved(`Deleted ${accountName(account)}`);
       onClose();
     } catch (e) {
       setError(e as CommandError);
@@ -108,7 +115,7 @@ export function AccountDrawer({ catalog, account, onClose, onSaved }: Props) {
     <div className="drawer-backdrop" onClick={onClose}>
       <aside className="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" onClick={(e) => e.stopPropagation()}>
         <header className="drawer-header">
-          <h2 id="drawer-title">{editing ? `Edit ${account.broker_name} ${account.client_id}` : "Add account"}</h2>
+          <h2 id="drawer-title">{editing ? `Edit ${accountName(account)}` : "Add account"}</h2>
           <button className="button quiet" onClick={onClose} aria-label="Close">
             Close
           </button>
@@ -167,6 +174,16 @@ export function AccountDrawer({ catalog, account, onClose, onSaved }: Props) {
               onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))}
             />
           ))}
+
+          {broker && (
+            <TagInput
+              id="field-tag"
+              value={tag}
+              filledFromCirrus={pastedTag !== null && tag === pastedTag}
+              error={error?.fields?.tag ?? null}
+              onChange={setTag}
+            />
+          )}
         </div>
 
         <footer className="drawer-footer">
@@ -206,24 +223,37 @@ function FieldInput({ field, value, saved, filledFromCirrus, error, onChange }: 
   const id = `field-${field.key}`;
   const hint = field.totp ? TOTP_HINT : field.help;
   const placeholder = saved ? "Saved. Leave blank to keep it." : field.placeholder ?? undefined;
+  const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
   return (
     <div className="field">
       <label htmlFor={id}>
         {field.label}
         {!field.required && <span className="muted"> (optional)</span>}
       </label>
-      <input
-        id={id}
-        className="input"
-        type={field.secret ? "password" : "text"}
-        autoComplete="off"
-        spellCheck={false}
-        value={value}
-        placeholder={placeholder}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      {field.secret ? (
+        <SecretInput
+          id={id}
+          label={field.label}
+          value={value}
+          placeholder={placeholder}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
+          onChange={onChange}
+        />
+      ) : (
+        <input
+          id={id}
+          className="input"
+          type="text"
+          autoComplete="off"
+          spellCheck={false}
+          value={value}
+          placeholder={placeholder}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
       {filledFromCirrus && <span className="hint">Filled in from Cirrus.</span>}
       {hint && <span className="hint" id={`${id}-hint`}>{hint}</span>}
       {error && <span className="error" id={`${id}-error`}>{error}</span>}

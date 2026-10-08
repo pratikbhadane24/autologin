@@ -5,7 +5,8 @@
 //! `payload` is base64url JSON with one account object or an array of them.
 //! Only pastes signed by a key in `TRUSTED_PASTE_KEYS` are accepted.
 //!
-//! Only fields marked `from_cirrus` in the broker manifest are kept. Anything
+//! Only fields marked `from_cirrus` in the broker manifest are kept, plus the
+//! account's `account_tag` (the user's name for it, e.g. "Pratik D"). Anything
 //! else, including any secret that slipped into the copy, is dropped and only
 //! its *name* is reported back. `tenant` must be a tenant id from the broker
 //! manifest, so a paste can never point logins at an unlisted server. Users
@@ -22,6 +23,7 @@ use thiserror::Error;
 
 use crate::broker::manifest::Availability;
 use crate::broker::registry::ManifestBundle;
+use crate::store::validate;
 
 pub const FORMAT_VERSION: u64 = 1;
 
@@ -38,6 +40,8 @@ const MAX_ACCOUNTS: usize = 500;
 const MAX_VALUE_CHARS: usize = 256;
 /// Keys that describe the paste itself, not an account field.
 const ENVELOPE_KEYS: &[&str] = &["autologin", "broker", "tenant"];
+/// The account's name in Cirrus ("Account Tag"); omitted when empty.
+const TAG_KEY: &str = "account_tag";
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum PasteError {
@@ -75,6 +79,8 @@ pub struct PastedAccount {
     pub tenant_id: String,
     pub broker_id: String,
     pub fields: BTreeMap<String, String>,
+    /// Cirrus's "Account Tag", to prefill the account's name.
+    pub tag: Option<String>,
     /// Names of keys that were present but not accepted.
     pub ignored: Vec<String>,
     pub coming_soon: bool,
@@ -236,8 +242,17 @@ fn parse_entry(entry: &Value, bundle: &ManifestBundle) -> Result<Result<PastedAc
 
     let mut fields = BTreeMap::new();
     let mut ignored = Vec::new();
+    let mut tag = None;
     for (key, value) in object {
         if ENVELOPE_KEYS.contains(&key.as_str()) {
+            continue;
+        }
+        if key == TAG_KEY {
+            // A tag that isn't valid is dropped (and named), never the account.
+            match value.as_str().map(|text| validate::normalize_tag(Some(text))) {
+                Some(Ok(valid)) => tag = valid,
+                _ => ignored.push(key.clone()),
+            }
             continue;
         }
         let accepted = manifest.field(key).filter(|f| f.from_cirrus);
@@ -255,6 +270,7 @@ fn parse_entry(entry: &Value, bundle: &ManifestBundle) -> Result<Result<PastedAc
         tenant_id,
         broker_id: manifest.id.clone(),
         fields,
+        tag,
         ignored,
         coming_soon: manifest.availability == Availability::ComingSoon,
         already_added: false,
@@ -470,6 +486,31 @@ mod tests {
         let paste = signed(r#"{"broker":"zerodha","client_id":"A"}"#);
         assert_eq!(parse_with_keys(&paste, &bundle(), &[]), Err(PasteError::UnknownKey));
         assert_eq!(parse(&paste, &bundle()), Err(PasteError::UnknownKey));
+    }
+
+    #[test]
+    fn carries_the_account_tag() {
+        let result = parse_signed(
+            r#"[{"broker":"zerodha","client_id":"AB1","account_tag":"  Pratik D "},
+                {"broker":"zerodha","client_id":"AB2"},
+                {"broker":"zerodha","client_id":"AB3","account_tag":"line\nbreak"},
+                {"broker":"zerodha","client_id":"AB4","account_tag":42}]"#,
+        )
+        .unwrap();
+        let tags: Vec<Option<&str>> = result.accounts.iter().map(|a| a.tag.as_deref()).collect();
+        assert_eq!(tags, vec![Some("Pratik D"), None, None, None]);
+        assert!(result.accounts[0].ignored.is_empty(), "account_tag is a known key");
+        assert!(!result.accounts[0].fields.contains_key("account_tag"), "the tag isn't a broker field");
+        assert_eq!(result.accounts[2].ignored, vec!["account_tag".to_string()]);
+        assert_eq!(result.accounts[3].ignored, vec!["account_tag".to_string()]);
+    }
+
+    #[test]
+    fn overlong_tags_are_dropped_but_the_account_kept() {
+        let long = "x".repeat(validate::MAX_TAG_CHARS + 1);
+        let result = parse_signed(&format!(r#"{{"broker":"zerodha","client_id":"AB1","account_tag":"{long}"}}"#)).unwrap();
+        assert_eq!(result.accounts[0].tag, None);
+        assert_eq!(result.accounts[0].fields["client_id"], "AB1");
     }
 
     #[test]

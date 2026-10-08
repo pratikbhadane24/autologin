@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { api } from "../lib/api";
 import type { Catalog, CommandError, FieldSpec, PasteResult, PastedAccount } from "../lib/types";
+import { SecretInput } from "./SecretInput";
+import { TagInput } from "./TagInput";
 import "./BulkAddDialog.css";
 
 interface Props {
@@ -13,6 +15,8 @@ interface Props {
 interface Row {
   pasted: PastedAccount;
   values: Record<string, string>;
+  /** The account's name, prefilled from Cirrus's Account Tag. */
+  tag: string;
   error: CommandError | null;
 }
 
@@ -20,6 +24,12 @@ interface Row {
 function fieldsToFill(catalog: Catalog, pasted: PastedAccount): FieldSpec[] {
   const broker = catalog.brokers.find((b) => b.id === pasted.broker_id);
   return (broker?.fields ?? []).filter((f) => !(f.key in pasted.fields));
+}
+
+/** "Fyers XA00451 (Pratik D)" for a pasted account. */
+export function pastedName(broker: string, pasted: Pick<PastedAccount, "fields" | "tag">): string {
+  const name = `${broker} ${pasted.fields.client_id}`;
+  return pasted.tag ? `${name} (${pasted.tag})` : name;
 }
 
 const plural = (n: number) => `${n} account${n === 1 ? "" : "s"}`;
@@ -49,13 +59,19 @@ export function summary(added: number, updated: number, needsSetup: number): str
  */
 export function BulkAddDialog({ catalog, paste, onClose, onDone }: Props) {
   const [rows, setRows] = useState<Row[]>(() =>
-    paste.accounts.filter((a) => !a.coming_soon).map((pasted) => ({ pasted, values: {}, error: null })),
+    paste.accounts
+      .filter((a) => !a.coming_soon)
+      .map((pasted) => ({ pasted, values: {}, tag: pasted.tag ?? "", error: null })),
   );
   const [saving, setSaving] = useState(false);
   const skippedComingSoon = paste.accounts.filter((a) => a.coming_soon);
   const brokerName = (id: string) => catalog.brokers.find((b) => b.id === id)?.name ?? id;
   const newCount = rows.filter((row) => !row.pasted.already_added).length;
   const refreshCount = rows.length - newCount;
+
+  function setTag(index: number, tag: string) {
+    setRows((current) => current.map((row, i) => (i === index ? { ...row, tag } : row)));
+  }
 
   function setValue(index: number, key: string, value: string) {
     setRows((current) =>
@@ -66,10 +82,12 @@ export function BulkAddDialog({ catalog, paste, onClose, onDone }: Props) {
   async function addAll() {
     setSaving(true);
     try {
-      const inputs = rows.map(({ pasted, values }) => ({
+      // Accounts already here keep the name they have; Cirrus's fills it only if empty.
+      const inputs = rows.map(({ pasted, values, tag }) => ({
         tenant_id: pasted.tenant_id,
         broker_id: pasted.broker_id,
         values: { ...pasted.fields, ...values },
+        tag: pasted.already_added ? pasted.tag : tag,
       }));
       const result = await api.addAccounts(inputs);
       const failed = new Map(result.errors.map((e) => [e.index, e.error]));
@@ -122,7 +140,7 @@ export function BulkAddDialog({ catalog, paste, onClose, onDone }: Props) {
           {skippedComingSoon.length > 0 && (
             <p className="notice">
               Not added yet (support coming soon):{" "}
-              {skippedComingSoon.map((a) => `${brokerName(a.broker_id)} ${a.fields.client_id}`).join(", ")}.
+              {skippedComingSoon.map((a) => pastedName(brokerName(a.broker_id), a)).join(", ")}.
             </p>
           )}
           {paste.problems.length > 0 && (
@@ -157,6 +175,12 @@ export function BulkAddDialog({ catalog, paste, onClose, onDone }: Props) {
                   </div>
                 ) : (
                   <div className="bulk-fields">
+                    <TagInput
+                      id={`bulk-${index}-tag`}
+                      value={row.tag}
+                      error={row.error?.fields?.tag ?? null}
+                      onChange={(tag) => setTag(index, tag)}
+                    />
                     {fieldsToFill(catalog, row.pasted).map((field) => {
                       const id = `bulk-${index}-${field.key}`;
                       const fieldError = row.error?.fields?.[field.key];
@@ -166,16 +190,26 @@ export function BulkAddDialog({ catalog, paste, onClose, onDone }: Props) {
                             {field.label}
                             {!field.required && <span className="muted"> (optional)</span>}
                           </label>
-                          <input
-                            id={id}
-                            className="input"
-                            type={field.secret ? "password" : "text"}
-                            autoComplete="off"
-                            spellCheck={false}
-                            value={row.values[field.key] ?? ""}
-                            aria-invalid={fieldError ? true : undefined}
-                            onChange={(e) => setValue(index, field.key, e.target.value)}
-                          />
+                          {field.secret ? (
+                            <SecretInput
+                              id={id}
+                              label={field.label}
+                              value={row.values[field.key] ?? ""}
+                              aria-invalid={fieldError ? true : undefined}
+                              onChange={(value) => setValue(index, field.key, value)}
+                            />
+                          ) : (
+                            <input
+                              id={id}
+                              className="input"
+                              type="text"
+                              autoComplete="off"
+                              spellCheck={false}
+                              value={row.values[field.key] ?? ""}
+                              aria-invalid={fieldError ? true : undefined}
+                              onChange={(e) => setValue(index, field.key, e.target.value)}
+                            />
+                          )}
                           {fieldError && <span className="error">{fieldError}</span>}
                         </div>
                       );

@@ -13,6 +13,8 @@ use super::validate::Completeness;
 use crate::broker::registry::{normalize_alias, ManifestBundle};
 
 const CLIENT_ID: &str = "client_id";
+/// CSV cell key for the account tag (not a broker field).
+const TAG: &str = "tag";
 
 /// CSV header (normalized: lowercase letters/digits only) -> field key.
 /// Covers v2 exports and v1's friendly names ("Client ID", "TOTP Key", ...).
@@ -21,6 +23,9 @@ const COLUMN_ALIASES: &[(&str, &str)] = &[
     ("workspace", "tenant"),
     ("broker", "broker"),
     ("clientid", CLIENT_ID),
+    ("accounttag", TAG),
+    ("tag", TAG),
+    ("name", TAG),
     ("userid", CLIENT_ID),
     ("mobilenumber", "mobile_number"),
     ("mobile", "mobile_number"),
@@ -62,6 +67,7 @@ pub fn collect_backup(accounts: &Accounts<'_>, app_version: &str) -> Result<Back
                 tenant_id: account.tenant_id,
                 broker_id: account.broker_id,
                 client_id: account.client_id,
+                tag: account.tag,
                 fields: account.fields,
                 secrets,
             })
@@ -114,6 +120,7 @@ fn csv_row_to_account(cells: &BTreeMap<&str, String>, bundle: &ManifestBundle) -
     let manifest = bundle.resolve_alias(broker_name).ok_or_else(|| format!("unsupported broker {broker_name:?}"))?;
     let client_id = cells.get(CLIENT_ID).ok_or("missing client ID")?.clone();
     let tenant_id = cells.get("tenant").cloned().unwrap_or_else(|| bundle.default_tenant().to_string());
+    let tag = cells.get(TAG).cloned();
 
     let mut fields = BTreeMap::new();
     let mut secrets = BTreeMap::new();
@@ -122,7 +129,7 @@ fn csv_row_to_account(cells: &BTreeMap<&str, String>, bundle: &ManifestBundle) -
         let target = if field.secret { &mut secrets } else { &mut fields };
         target.insert(key.to_string(), value.clone());
     }
-    Ok(BackupAccount { tenant_id, broker_id: manifest.id.clone(), client_id, fields, secrets })
+    Ok(BackupAccount { tenant_id, broker_id: manifest.id.clone(), client_id, tag, fields, secrets })
 }
 
 /// Add or update each account (matched by tenant + broker + client ID).
@@ -159,7 +166,8 @@ fn apply_one(accounts: &Accounts<'_>, bundle: &ManifestBundle, entry: &BackupAcc
         .map(|(k, v)| (k.clone(), v.clone()))
         .chain([(CLIENT_ID.to_string(), entry.client_id.clone())])
         .collect();
-    let input = AccountInput { tenant_id: entry.tenant_id.clone(), broker_id: broker.id.clone(), values };
+    // A file without a tag (older backup, CSV without the column) keeps the saved one.
+    let input = AccountInput { tenant_id: entry.tenant_id.clone(), broker_id: broker.id.clone(), values, tag: entry.tag.clone() };
     let key = AccountKey { tenant_id: entry.tenant_id.clone(), broker_id: broker.id.clone(), client_id: entry.client_id.trim().to_string() };
 
     let (account, created) = match accounts.find(&key)? {
@@ -244,6 +252,53 @@ Angel Two,X1,,,,,,,,,
         let restored = new.accounts().list().unwrap();
         let zerodha = restored.iter().find(|a| a.client_id == "AB1").unwrap();
         assert_eq!(new.secrets.load(&new.conn, &zerodha.key()).unwrap()["password"], "pw-1");
+    }
+
+    #[test]
+    fn account_tags_survive_backup_and_csv_round_trips() {
+        let old = Fixture::new();
+        let (entries, _) = parse_csv(V1_CSV, &old.bundle).unwrap();
+        apply(&old.accounts(), &old.bundle, &entries);
+        let zerodha = old.accounts().list().unwrap().into_iter().find(|a| a.client_id == "AB1").unwrap();
+        let tagged = AccountInput {
+            tenant_id: "cirrus".into(),
+            broker_id: "zerodha".into(),
+            values: [("client_id".to_string(), "AB1".to_string()), ("api_key".to_string(), "kite".to_string())].into(),
+            tag: Some("Pratik D".into()),
+        };
+        old.accounts().update(zerodha.id, &tagged, Completeness::AllowMissing).unwrap();
+        let backup = collect_backup(&old.accounts(), "2.0.0").unwrap();
+        let tag_of = |fx: &Fixture| fx.accounts().list().unwrap().into_iter().find(|a| a.client_id == "AB1").unwrap().tag;
+
+        // Encrypted and plain backups carry the tag (serde round trip).
+        let plain = crate::store::backup::export_plain(&backup);
+        let restored = crate::store::backup::read_backup(&plain, None).unwrap();
+        let new = Fixture::new();
+        apply(&new.accounts(), &new.bundle, &restored.accounts);
+        assert_eq!(tag_of(&new).as_deref(), Some("Pratik D"));
+
+        // CSV has an "Account Tag" column that is read back.
+        let csv = crate::store::backup::export_csv(&backup.accounts);
+        assert!(csv.starts_with("tenant,broker,client_id,Account Tag,"), "{csv}");
+        let (from_csv, problems) = parse_csv(&csv, &new.bundle).unwrap();
+        assert!(problems.is_empty(), "{problems:?}");
+        let fresh = Fixture::new();
+        apply(&fresh.accounts(), &fresh.bundle, &from_csv);
+        assert_eq!(tag_of(&fresh).as_deref(), Some("Pratik D"));
+
+        // An older CSV without the column keeps the tag already saved.
+        apply(&fresh.accounts(), &fresh.bundle, &parse_csv(V1_CSV, &fresh.bundle).unwrap().0);
+        assert_eq!(tag_of(&fresh).as_deref(), Some("Pratik D"));
+    }
+
+    #[test]
+    fn invalid_tags_in_a_file_are_reported_per_row() {
+        let fx = Fixture::new();
+        let long = "x".repeat(65);
+        let (entries, _) = parse_csv(&format!("broker,client_id,Account Tag\nzerodha,AB1,{long}\n"), &fx.bundle).unwrap();
+        let report = apply(&fx.accounts(), &fx.bundle, &entries);
+        assert_eq!(report.added, 0);
+        assert_eq!(report.problems[0].row, 1);
     }
 
     #[test]

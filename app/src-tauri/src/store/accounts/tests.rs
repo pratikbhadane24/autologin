@@ -34,6 +34,7 @@ fn zerodha(tenant: &str, client: &str) -> AccountInput {
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect(),
+        tag: None,
     }
 }
 
@@ -160,6 +161,7 @@ fn add_or_refresh_fills_only_missing_values_and_never_replaces_saved_ones() {
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect(),
+        tag: None,
     };
 
     // The missing key is filled in; saved secrets stay.
@@ -196,8 +198,87 @@ fn add_or_refresh_creates_new_accounts_even_with_values_missing() {
         tenant_id: "pocketful".into(),
         broker_id: "zerodha".into(),
         values: [("client_id".to_string(), "AB1".to_string())].into(),
+        tag: None,
     };
     let (account, created) = fx.accounts().add_or_refresh(&only_client).unwrap();
     assert!(created);
     assert_eq!(account.tenant_id, "pocketful");
+}
+
+fn tagged(input: AccountInput, tag: &str) -> AccountInput {
+    AccountInput { tag: Some(tag.into()), ..input }
+}
+
+#[test]
+fn tag_is_saved_trimmed_kept_on_edit_and_cleared_when_emptied() {
+    let fx = Fixture::new();
+    let account = fx.accounts().create(&tagged(zerodha("cirrus", "AB1"), "  Pratik D "), Completeness::Strict).unwrap();
+    assert_eq!(account.tag.as_deref(), Some("Pratik D"));
+    assert_eq!(account.display_name("Zerodha"), "Zerodha AB1 (Pratik D)");
+
+    // No tag in the input (e.g. an import without one) keeps the saved tag.
+    let kept = fx.accounts().update(account.id, &zerodha("cirrus", "AB1"), Completeness::Strict).unwrap();
+    assert_eq!(kept.tag.as_deref(), Some("Pratik D"));
+
+    let renamed = fx.accounts().update(account.id, &tagged(zerodha("cirrus", "AB1"), "Vinit ant"), Completeness::Strict).unwrap();
+    assert_eq!(renamed.tag.as_deref(), Some("Vinit ant"));
+
+    let cleared = fx.accounts().update(account.id, &tagged(zerodha("cirrus", "AB1"), "  "), Completeness::Strict).unwrap();
+    assert_eq!(cleared.tag, None);
+    assert_eq!(cleared.display_name("Zerodha"), "Zerodha AB1");
+}
+
+#[test]
+fn invalid_tags_are_reported_next_to_the_name_field() {
+    let fx = Fixture::new();
+    let err = fx.accounts().create(&tagged(zerodha("cirrus", "AB1"), &"x".repeat(65)), Completeness::Strict).unwrap_err();
+    let AccountError::Invalid(fields) = err else { panic!("expected a field error, got {err:?}") };
+    assert!(fields.0["tag"].contains("64"));
+
+    // Reported together with the other fields' problems.
+    let mut bad = tagged(zerodha("cirrus", "AB1"), "two\nlines");
+    bad.values.insert("totp_key".into(), "!!".into());
+    let AccountError::Invalid(fields) = fx.accounts().create(&bad, Completeness::Strict).unwrap_err() else { panic!() };
+    assert_eq!(fields.0.keys().collect::<Vec<_>>(), vec!["tag", "totp_key"]);
+    assert!(fx.accounts().list().unwrap().is_empty());
+}
+
+#[test]
+fn add_or_refresh_fills_a_missing_tag_but_never_replaces_one() {
+    let fx = Fixture::new();
+    let original = fx.accounts().create(&zerodha("cirrus", "AB1"), Completeness::Strict).unwrap();
+    assert_eq!(original.tag, None);
+    let paste = |tag: Option<&str>| AccountInput {
+        tenant_id: "cirrus".into(),
+        broker_id: "zerodha".into(),
+        values: [("client_id".to_string(), "AB1".to_string())].into(),
+        tag: tag.map(str::to_string),
+    };
+
+    let (filled, created) = fx.accounts().add_or_refresh(&paste(Some("Pratik D"))).unwrap();
+    assert!(!created);
+    assert_eq!(filled.tag.as_deref(), Some("Pratik D"));
+
+    let (kept, _) = fx.accounts().add_or_refresh(&paste(Some("Someone else"))).unwrap();
+    assert_eq!(kept.tag.as_deref(), Some("Pratik D"));
+    let (still, _) = fx.accounts().add_or_refresh(&paste(None)).unwrap();
+    assert_eq!(still.tag.as_deref(), Some("Pratik D"));
+
+    // A new account takes the pasted tag.
+    let new_account = AccountInput { tenant_id: "pocketful".into(), ..paste(Some("Vinit ant")) };
+    let (added, created) = fx.accounts().add_or_refresh(&new_account).unwrap();
+    assert!(created);
+    assert_eq!(added.tag.as_deref(), Some("Vinit ant"));
+}
+
+#[test]
+fn a_differently_tagged_paste_is_reported() {
+    let fx = Fixture::new();
+    let untagged = fx.accounts().create(&zerodha("cirrus", "AB1"), Completeness::Strict).unwrap();
+    assert!(!super::tag_differs(&untagged, Some("Pratik D")), "an empty tag is filled, not kept");
+    let saved = fx.accounts().create(&tagged(zerodha("cirrus", "AB2"), "Pratik D"), Completeness::Strict).unwrap();
+    assert!(super::tag_differs(&saved, Some("Vinit ant")));
+    assert!(!super::tag_differs(&saved, Some(" Pratik D ")));
+    assert!(!super::tag_differs(&saved, None));
+    assert!(!super::tag_differs(&saved, Some("")));
 }

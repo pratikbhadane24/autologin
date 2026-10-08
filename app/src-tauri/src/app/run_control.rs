@@ -139,10 +139,10 @@ mod tests {
         let failed = RunSummary {
             succeeded: 2,
             failed: 4,
-            failed_accounts: vec!["Zerodha A".into(), "Upstox B".into(), "Pocketful C".into(), "Zerodha D".into()],
+            failed_accounts: vec!["Zerodha A (Pratik D)".into(), "Upstox B".into(), "Pocketful C".into(), "Zerodha D".into()],
             ..RunSummary::default()
         };
-        assert_eq!(summary_text(&failed), "2 logged in, 4 failed: Zerodha A, Upstox B, Pocketful C and 1 more");
+        assert_eq!(summary_text(&failed), "2 logged in, 4 failed: Zerodha A (Pratik D), Upstox B, Pocketful C and 1 more");
         let stopped = RunSummary { cancelled: true, succeeded: 1, ..RunSummary::default() };
         assert_eq!(summary_text(&stopped), "Stopped. 1 logged in, 0 failed.");
     }

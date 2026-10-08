@@ -1,4 +1,5 @@
 // The readiness line: how many accounts are ready for market open.
+import { accountName } from "./accountStatus";
 import type { Account } from "./types";
 import type { LiveAccount } from "./runState";
 
@@ -26,7 +27,7 @@ export function readiness(accounts: Account[], live: Record<number, LiveAccount>
   const segments = accounts.map((account) => ({
     id: account.id,
     state: segmentFor(account, live[account.id]),
-    label: `${account.broker_name} ${account.client_id}`,
+    label: accountName(account),
   }));
   const ready = segments.filter((s) => s.state === "ready").length;
   // Accounts for brokers AutoLogin can't log in yet don't count against readiness.

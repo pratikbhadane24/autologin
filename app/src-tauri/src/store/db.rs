@@ -90,6 +90,29 @@ mod tests {
     }
 
     #[test]
+    fn upgrading_adds_an_empty_tag_to_existing_accounts() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(DB_FILE);
+        // A database from before the tag column (migrations 001 and 002 only).
+        {
+            let mut conn = Connection::open(&path).unwrap();
+            let mut files: Vec<_> = MIGRATIONS_DIR.files().collect();
+            files.sort_by_key(|f| f.path());
+            let before_tag: Vec<_> = files.iter().take(2).filter_map(|f| f.contents_utf8()).map(M::up).collect();
+            Migrations::new(before_tag).to_latest(&mut conn).unwrap();
+            conn.execute("INSERT INTO accounts (tenant_id, broker_id, client_id, added_on) VALUES ('cirrus', 'zerodha', 'AB1', 'x')", [])
+                .unwrap();
+        }
+
+        let conn = open(dir.path()).unwrap();
+
+        assert!(dir.path().join(format!("{DB_FILE}.bak-v2")).exists(), "backed up before upgrading");
+        let tag: Option<String> = conn.query_row("SELECT tag FROM accounts WHERE client_id = 'AB1'", [], |r| r.get(0)).unwrap();
+        assert_eq!(tag, None);
+        conn.execute("UPDATE accounts SET tag = 'Pratik D'", []).unwrap();
+    }
+
+    #[test]
     fn same_client_in_two_tenants_is_allowed_but_not_twice_in_one() {
         let conn = open_in_memory().unwrap();
         let insert = "INSERT INTO accounts (tenant_id, broker_id, client_id, added_on) VALUES (?1, 'zerodha', 'AB1', 'x')";

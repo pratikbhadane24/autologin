@@ -82,7 +82,7 @@ pub struct RunSummary {
     pub failed: usize,
     pub skipped: usize,
     pub cancelled: bool,
-    /// "Broker client_id" of each failed account, for the notification.
+    /// "Broker client_id (tag)" of each failed account, for the notification.
     pub failed_accounts: Vec<String>,
     /// Ids of failed accounts, for "retry failed after N minutes".
     pub failed_ids: Vec<i64>,
@@ -151,7 +151,7 @@ where
             Outcome::Failed => {
                 summary.failed += 1;
                 summary.failed_ids.push(account.id);
-                summary.failed_accounts.push(format!("{} {}", broker_name(deps, &account), account.client_id));
+                summary.failed_accounts.push(display_name(deps, &account));
             }
             Outcome::Cancelled => summary.cancelled = true,
         }
@@ -166,6 +166,14 @@ where
 /// Load the account and decide whether it can run; `Err` is a skip reason.
 fn plan(deps: &RunnerDeps, id: i64) -> Result<Account, String> {
     let account = deps.with_accounts(|a| a.get(id)).map_err(|e| e.to_string())?;
+    if let Err(reason) = can_run(deps, &account) {
+        tracing::info!(account = id, name = %display_name(deps, &account), %reason, "account skipped");
+        return Err(reason);
+    }
+    Ok(account)
+}
+
+fn can_run(deps: &RunnerDeps, account: &Account) -> Result<(), String> {
     let manifest = deps.bundle.get(&account.broker_id).ok_or("This broker isn't supported by this version.")?;
     if manifest.availability == Availability::ComingSoon {
         return Err(format!("{} support is coming soon.", manifest.name));
@@ -178,7 +186,7 @@ fn plan(deps: &RunnerDeps, id: i64) -> Result<Account, String> {
         let labels: Vec<&str> = missing.iter().filter_map(|k| manifest.field(k)).map(|f| f.label.as_str()).collect();
         return Err(format!("Needs setup: add {}.", labels.join(", ")));
     }
-    Ok(account)
+    Ok(())
 }
 
 async fn launch_if_needed(deps: &RunnerDeps, accounts: &[Account], options: &RunOptions) -> Option<Result<BrowserSession, String>> {
@@ -207,10 +215,10 @@ where
     let manifest = deps.bundle.get(&account.broker_id).expect("planned accounts have a manifest");
     let values = match deps.with_accounts(|a| a.login_values(account.id)) {
         Ok(values) => values,
-        Err(error) => return finish(deps, account.id, Err(error.to_string()), emit),
+        Err(error) => return finish(deps, account, Err(error.to_string()), emit),
     };
     if let Some(Err(launch_error)) = browser.filter(|_| manifest.kind != BrokerKind::Http) {
-        return finish(deps, account.id, Err(format!("Could not start the browser: {launch_error}")), emit);
+        return finish(deps, account, Err(format!("Could not start the browser: {launch_error}")), emit);
     }
     let redactor = Redactor::new(manifest.secret_keys().filter_map(|k| values.get(k)));
     let http = crate::broker::http_flows::client();
@@ -237,18 +245,19 @@ where
             () = cancel.cancelled() => return cancelled(account.id, emit),
         };
         match result {
-            Ok(message) => return finish(deps, account.id, Ok(message), emit),
+            Ok(message) => return finish(deps, account, Ok(message), emit),
             Err(AttemptError { message, retryable: true }) if attempt_number < max_attempts => {
-                tracing::warn!(account = account.id, attempt = attempt_number, %message, "attempt failed; retrying");
+                tracing::warn!(account = account.id, name = %display_name(deps, account), attempt = attempt_number, %message, "attempt failed; retrying");
                 tokio::time::sleep(RETRY_BACKOFF * attempt_number).await;
             }
-            Err(AttemptError { message, .. }) => return finish(deps, account.id, Err(message), emit),
+            Err(AttemptError { message, .. }) => return finish(deps, account, Err(message), emit),
         }
     }
     unreachable!("the loop returns on the last attempt")
 }
 
-fn finish<E: Fn(RunEvent)>(deps: &RunnerDeps, account_id: i64, result: Result<String, String>, emit: &E) -> Outcome {
+fn finish<E: Fn(RunEvent)>(deps: &RunnerDeps, account: &Account, result: Result<String, String>, emit: &E) -> Outcome {
+    let account_id = account.id;
     let (record, outcome, ok, message) = match result {
         Ok(message) => (LoginResult::Success { at: Utc::now() }, Outcome::Succeeded, true, message),
         Err(message) => (LoginResult::Failure { message: message.clone() }, Outcome::Failed, false, message),
@@ -256,7 +265,7 @@ fn finish<E: Fn(RunEvent)>(deps: &RunnerDeps, account_id: i64, result: Result<St
     if let Err(error) = deps.with_accounts(|a| a.record_result(account_id, &record)) {
         tracing::error!(account = account_id, %error, "could not save login result");
     }
-    tracing::info!(account = account_id, ok, "login finished");
+    tracing::info!(account = account_id, name = %display_name(deps, account), ok, "login finished");
     emit(RunEvent::AccountFinished { account_id, ok, message });
     outcome
 }
@@ -266,8 +275,10 @@ fn cancelled<E: Fn(RunEvent)>(account_id: i64, emit: &E) -> Outcome {
     Outcome::Cancelled
 }
 
-fn broker_name(deps: &RunnerDeps, account: &Account) -> String {
-    deps.bundle.get(&account.broker_id).map_or_else(|| account.broker_id.clone(), |m| m.name.clone())
+/// "Zerodha AB1 (Pratik D)": how logs and notifications name an account.
+fn display_name(deps: &RunnerDeps, account: &Account) -> String {
+    let broker = deps.bundle.get(&account.broker_id).map_or(account.broker_id.as_str(), |m| m.name.as_str());
+    account.display_name(broker)
 }
 
 fn start_run_row(deps: &RunnerDeps, trigger: Trigger) -> i64 {
