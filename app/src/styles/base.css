@@ -100,6 +100,9 @@ textarea {
 
 .field {
   display: grid;
+  /* Side by side, a taller neighbour (e.g. one with a hint) must not push
+     this field's input down by stretching its label row. */
+  align-content: start;
   gap: var(--space-1);
 }
 .field label {
