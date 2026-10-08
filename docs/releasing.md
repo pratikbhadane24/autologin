@@ -20,6 +20,8 @@ Releases are built by `.github/workflows/release-v2.yml`. CI for pull requests a
    - For non-pre-releases, it checks that the release contains exactly one `.msi`, one `.dmg` and one `.AppImage`. The v1 updater depends on this (see below).
 6. Check the draft, edit the notes if needed, then **Publish**. Installed apps see nothing until you publish. The v1 updater, the v2 broker-manifest fetch and the Tauri updater all read `releases/latest`, which excludes drafts and pre-releases.
 
+Release builds restore the compiled Rust from caches that `warm-release-cache.yml` keeps on `main` (it reruns after app changes merge, weekly, and on demand). A tag can't reuse another tag's cache, so if a release runs right after a merge, wait for "Warm release caches" to finish first, or the release compiles from scratch.
+
 To rebuild an existing tag, use **Actions → Release (v2) → Run workflow** with `tag` set. It reuses the existing release and overwrites its assets.
 
 Commit groups in the notes:

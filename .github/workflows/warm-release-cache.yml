@@ -1,0 +1,139 @@
+name: Warm release caches
+
+# Release builds run on tags, and a cache saved by one tag can't be read by
+# the next: GitHub only shares caches from the default branch. So this
+# compiles the same release builds on main and saves them under the shared
+# keys release-v2.yml restores (`shared-key: release-<platform>`). A release
+# then only recompiles AutoLogin itself instead of every dependency.
+#
+# Runs after merges that touch the app, weekly (caches unused for 7 days are
+# evicted), and on demand. Nothing is signed or uploaded here.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/warm-release-cache.yml'
+  schedule:
+    - cron: '30 3 * * 1' # Mondays 03:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: warm-release-cache
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '10'
+  TAURI_LINUX_DEPS: >-
+    libwebkit2gtk-4.1-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
+    libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+    build-essential pkg-config patchelf
+
+jobs:
+  desktop:
+    name: Warm (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Names, runners and targets must match release-v2.yml's build matrix.
+        include:
+          - name: windows
+            os: windows-latest
+            args: ''
+            rust_targets: ''
+          - name: macos-universal
+            os: macos-latest
+            args: --target universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - name: linux
+            os: ubuntu-22.04
+            args: ''
+            rust_targets: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Tauri system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          # shellcheck disable=SC2086 # deliberate word splitting into package names
+          sudo apt-get install -y $TAURI_LINUX_DEPS
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable branch
+        with:
+          toolchain: stable # required when pinned by SHA
+          targets: ${{ matrix.rust_targets }}
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: app/src-tauri -> target
+          shared-key: release-${{ matrix.name }}
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: app
+        run: pnpm install --frozen-lockfile
+
+      # Same cargo build as a release (profile, features, targets), minus
+      # bundling and signing.
+      - name: Release build (no bundle)
+        working-directory: app
+        shell: bash
+        run: pnpm tauri build --no-bundle ${{ matrix.args }}
+
+  android:
+    name: Warm (android)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable branch
+        with:
+          toolchain: stable
+          targets: aarch64-linux-android,armv7-linux-androideabi
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: app/src-tauri -> target
+          shared-key: release-android
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: app
+        run: pnpm install --frozen-lockfile
+
+      # Unsigned: only the compiled Rust is kept (in the cache).
+      - name: Release build (unsigned APK)
+        working-directory: app
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64" NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          pnpm tauri android build --apk --target aarch64 --target armv7
