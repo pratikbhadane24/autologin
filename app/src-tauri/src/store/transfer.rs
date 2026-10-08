@@ -36,6 +36,7 @@ const COLUMN_ALIASES: &[(&str, &str)] = &[
     ("totp", "totp_key"),
     ("totpsecret", "totp_key"),
     ("apikey", "api_key"),
+    ("apisecret", "api_secret"),
     ("dob", "dob"),
     ("dateofbirth", "dob"),
 ];
@@ -157,7 +158,7 @@ pub fn apply(accounts: &Accounts<'_>, bundle: &ManifestBundle, entries: &[Backup
 /// Returns (created, needs_setup).
 fn apply_one(accounts: &Accounts<'_>, bundle: &ManifestBundle, entry: &BackupAccount) -> Result<(bool, bool), AccountError> {
     let broker = bundle.resolve_alias(&entry.broker_id).ok_or_else(|| AccountError::UnknownBroker(entry.broker_id.clone()))?;
-    // Drop keys the broker doesn't define (e.g. v1's api_secret).
+    // Drop keys the broker doesn't define (e.g. v1's api_secret for Zerodha).
     let values: BTreeMap<String, String> = entry
         .fields
         .iter()

@@ -16,14 +16,23 @@ help = "From your Motilal Oswal OpenAPI registration (invest.motilaloswal.com)."
 from_cirrus = true
 
 [[fields]]
+key = "api_secret"
+label = "API Secret"
+help = "The secret key of your Motilal Oswal OpenAPI app. Motilal's login (v7) requires it."
+secret = true
+
+[[fields]]
 key = "password"
 label = "Password"
 secret = true
 
+# Motilal accepts either the date of birth or the PAN as the second factor.
+# The key stays "dob" so existing accounts keep their saved value.
 [[fields]]
 key = "dob"
-label = "Date of Birth (2FA)"
-placeholder = "dd/mm/yyyy"
+label = "DOB or PAN (2FA)"
+placeholder = "dd/mm/yyyy or ABCDE1234F"
+pattern = "^([0-9]{2}/[0-9]{2}/[0-9]{4}|[A-Za-z]{5}[0-9]{4}[A-Za-z])$"
 secret = true
 
 [[fields]]
@@ -33,10 +42,16 @@ secret = true
 totp = true
 
 [consts]
-login_url = "https://openapi.motilaloswal.com/rest/login/v3/authdirectapi"
+# v7 per Motilal's API docs (invest.motilaloswal.com/moAPI/APIDocumentation)
+# and PythonSDK (github.com/motradingapi/PythonSDK, "Python 5.0", 2026-09-04).
+# Older versions now answer "Login via existing version is restricted".
+login_url = "https://openapi.motilaloswal.com/rest/login/v7/authdirectapi"
 
 # Device headers Motilal's API expects. Kept as data so they can be updated
-# from the remote manifest if the API starts rejecting them.
+# from the remote manifest if the API starts rejecting them. The v7 set mirrors
+# PythonSDK's MOFSLOPENAPI.validate(): apisecretkey is now mandatory, and
+# accesstoken/Authorization are sent empty at login. installedappid is a fresh
+# id per login, added by http_flows/motilal.rs like the SDK's uuid1().
 [headers]
 "User-Agent" = "MOSL/V.1.1.0"
 sourceid = "web"
@@ -53,6 +68,12 @@ browsername = "Chrome"
 browserversion = "135.0"
 productname = "Investor"
 productversion = "1"
+apisecretkey = "{api_secret}"
+accesstoken = ""
+Authorization = ""
+sdkversion = "Python 5.0"
+latitude = "0.0000"
+longitude = "0.0000"
 
 [session]
 reset = "05:00"

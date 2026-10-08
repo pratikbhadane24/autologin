@@ -40,7 +40,7 @@ fn add(deps: &RunnerDeps, broker: &str, values: &[(&str, &str)]) -> i64 {
 }
 
 fn motilal(deps: &RunnerDeps) -> i64 {
-    add(deps, "motilal", &[("client_id", "EMUM1"), ("api_key", "KEY"), ("password", "pw"), ("dob", "01/01/1990"), ("totp_key", TOTP)])
+    add(deps, "motilal", &[("client_id", "EMUM1"), ("api_key", "KEY"), ("api_secret", "SECRET"), ("password", "pw"), ("dob", "01/01/1990"), ("totp_key", TOTP)])
 }
 
 fn options() -> RunOptions {
@@ -151,6 +151,24 @@ async fn skips_accounts_that_cannot_run_with_reasons() {
     assert_eq!(reasons[0], "Fyers support is coming soon.");
     assert_eq!(reasons[1], "Needs setup: add Password, PIN.");
     assert_eq!(reasons[2], "account not found");
+}
+
+#[tokio::test]
+async fn motilal_account_without_api_secret_needs_setup() {
+    let dir = tempfile::tempdir().unwrap();
+    let deps = deps(ManifestBundle::bundled().unwrap(), dir.path());
+    // Saved before Motilal's v7 login made the API secret mandatory.
+    let fields = [("client_id", "EMUM1"), ("api_key", "KEY"), ("password", "pw"), ("dob", "01/01/1990"), ("totp_key", TOTP)];
+    let id = add(&deps, "motilal", &fields);
+    let (events, emit) = collect_events();
+
+    let summary = run(&deps, &[id], &options(), &CancellationToken::new(), emit).await;
+
+    assert_eq!(summary.skipped, 1);
+    let skipped = events.lock().unwrap().iter().any(|e| {
+        matches!(e, RunEvent::AccountSkipped { reason, .. } if reason == "Needs setup: add API Secret.")
+    });
+    assert!(skipped);
 }
 
 #[tokio::test]

@@ -2,7 +2,7 @@
 # Bump manifest_version whenever any broker file changes; the app keeps the
 # newest valid manifest it has seen (bundled, cached or remote).
 schema_version = 1
-manifest_version = 1
+manifest_version = 2
 
 # Cirrus deployments, referenced as {tenant.<key>}. Every tenant defines the
 # same keys. Broker redirects go to cirrus_app (app.cirrus.trade), which is
