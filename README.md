@@ -18,10 +18,10 @@ day. AutoLogin does not ask you to sign in to Cirrus.
 
 | Broker | Status |
 |---|---|
-| Pocketful, Zerodha, Upstox, Motilal Oswal, Dhan, 5Paisa, Tradejini (with your own API app) | v2.0 |
+| Pocketful, Zerodha, Upstox, Motilal Oswal, Dhan, 5Paisa, Tradejini, AliceBlue (with your own API app) | v2.0 |
 | Fyers | Not yet: its login page requires a human check, so it can't run unattended |
 | Angel One, Nuvama, Sharekhan, Jainam Lite, Kotak Neo, Firstock | Coming in v2.1 |
-| Groww, AliceBlue | Planned |
+| Groww | Planned |
 
 Broker login steps are plain data files in
 [`app/src-tauri/brokers/`](app/src-tauri/brokers/). When a broker changes its
