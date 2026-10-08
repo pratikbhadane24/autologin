@@ -26,9 +26,13 @@ use crate::broker::registry::ManifestBundle;
 pub const FORMAT_VERSION: u64 = 1;
 
 /// Cirrus paste-signing public keys as `(kid, hex-encoded ed25519 key)`.
-/// The private keys live only on the Cirrus backend. Empty until Cirrus
-/// generates its first key; until then every paste is rejected.
-pub const TRUSTED_PASTE_KEYS: &[(&str, &str)] = &[];
+/// The private keys live only on the Cirrus backend (AUTOLOGIN_SIGNING_KEY,
+/// named by AUTOLOGIN_SIGNING_KEY_ID). To rotate, ship the new key here
+/// before the backend switches to it.
+pub const TRUSTED_PASTE_KEYS: &[(&str, &str)] = &[
+    // Cirrus production, created 2026-10-07.
+    ("cirrus-202610", "742c4b5870b8f0b543018f2c9ea40cf73e8fbb3d868c290bbbf55815b3552517"),
+];
 const MAX_PASTE_BYTES: usize = 256 * 1024;
 const MAX_ACCOUNTS: usize = 500;
 const MAX_VALUE_CHARS: usize = 256;
@@ -49,7 +53,7 @@ pub enum PasteError {
     TooManyAccounts,
     #[error("This copy isn't signed by Cirrus. Use the \"Copy for AutoLogin\" button in Cirrus.")]
     Unsigned,
-    #[error("This copy was signed with an unknown key; update AutoLogin.")]
+    #[error("This copy comes from a Cirrus server this version of AutoLogin doesn't recognise. Update AutoLogin and try again.")]
     UnknownKey,
     #[error("This copy was changed after Cirrus created it, so it can't be trusted.")]
     BadSignature,
@@ -263,6 +267,21 @@ mod tests {
     use ed25519_dalek::{Signer, SigningKey};
 
     const KID: &str = "test-1";
+
+    #[test]
+    fn trusted_keys_are_valid_and_uniquely_named() {
+        assert!(!TRUSTED_PASTE_KEYS.is_empty(), "release builds need at least one Cirrus paste key");
+        for (kid, key_hex) in TRUSTED_PASTE_KEYS {
+            let bytes: [u8; 32] = hex::decode(key_hex).ok().and_then(|b| b.try_into().ok()).unwrap_or_else(|| {
+                panic!("{kid}: not 32 bytes of hex");
+            });
+            assert!(VerifyingKey::from_bytes(&bytes).is_ok(), "{kid}: not an ed25519 public key");
+        }
+        let mut kids: Vec<_> = TRUSTED_PASTE_KEYS.iter().map(|(kid, _)| kid).collect();
+        kids.sort();
+        kids.dedup();
+        assert_eq!(kids.len(), TRUSTED_PASTE_KEYS.len(), "duplicate key ids");
+    }
 
     fn bundle() -> ManifestBundle {
         ManifestBundle::bundled().unwrap()
