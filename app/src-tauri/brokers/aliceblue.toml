@@ -1,0 +1,116 @@
+id = "aliceblue"
+name = "AliceBlue"
+kind = "browser"
+aliases = ["aliceblue", "alice blue", "alice", "ant"]
+
+# Checked on 2026-10-08 against the live ANT web login (ant.aliceblueonline.com,
+# "ANT WEB Version 2.1") and its script bundle, with a dummy App Code and a
+# made-up user: no CAPTCHA, Turnstile or other human check anywhere in the
+# flow. The screens after the password (TOTP, first-time "Authorize") come
+# from the bundle, since they need a real account.
+
+# Each user logs in through their own AliceBlue API app (a3.aliceblueonline.com,
+# My Apps). Its App Code opens the login page; its API secret stays on Cirrus.
+[[fields]]
+key = "client_id"
+label = "AliceBlue User ID"
+from_cirrus = true
+pattern = "^[A-Za-z0-9]{1,32}$"
+
+[[fields]]
+key = "api_key"
+label = "AliceBlue App Code"
+from_cirrus = true
+help = "The App Code of your own AliceBlue API app (a3.aliceblueonline.com → My Apps). Set the app's redirect URL to https://app.cirrus.trade/add-broker-account/aliceblue."
+
+# The login page caps the password at 16 characters.
+[[fields]]
+key = "password"
+label = "Password"
+secret = true
+
+# Without TOTP, ANT sends an SMS OTP instead, which can't run unattended.
+[[fields]]
+key = "totp_key"
+label = "TOTP Secret"
+secret = true
+totp = true
+help = "The text key AliceBlue shows under the QR code when you turn on TOTP. TOTP must be on: without it, AliceBlue asks for an SMS OTP."
+
+[session]
+reset = "05:00"
+tz = "Asia/Kolkata"
+
+# The same login link the Cirrus backend builds (AliceBlue's documented
+# "Get Session" flow). AliceBlue has no state parameter: the redirect's userId
+# tells Cirrus which account this is.
+[[steps]]
+action = "goto"
+url = "https://ant.aliceblueonline.com/?appcode={url:api_key}"
+
+# ANT shows a CleverTap "ANT Expertise Unlocked!" push-notification prompt at
+# a random moment (seen live 2026-10-08); its overlay swallows clicks. A fresh
+# private session gets it every time, so keep it hidden for the whole login.
+[[steps]]
+action = "eval"
+js = "document.head.appendChild(Object.assign(document.createElement('style'), {{ textContent: '#wzrk_wrapper, .wzrk-overlay, .wzrk-alert {{ display: none !important; }}' }}))"
+
+# Ids from the live page: User ID and password share one form ...
+[[steps]]
+action = "fill"
+sel = ["#new_login_userId"]
+value = "{client_id}"
+timeout_ms = 20000
+
+[[steps]]
+action = "fill"
+sel = ["#new_login_password"]
+value = "{password}"
+
+[[steps]]
+action = "click"
+sel = ["#buttonLabel_Next", "button[type=\"submit\"]"]
+
+# ... then the code screen. One box serves both codes; its label reads "TOTP"
+# only on the TOTP screen, so the code goes in only there. Accounts without
+# TOTP get "Mobile OTP" with "Register for TOTP" (a failure text below).
+# The page submits the code itself once all six digits are in, so there is
+# no click: a second submit would send the same code again.
+[[steps]]
+action = "type"
+sel = ["xpath=//form[@id='otp_verification_form'][.//label[@id='new_login_otp_label'][normalize-space()='TOTP']]//input[@id='new_login_otp']"]
+value = "{totp}"
+timeout_ms = 20000
+
+# Shown only until the user has approved this app once ("Authorize Alice
+# Blue / Permission required by the app").
+[[steps]]
+action = "optional"
+when = ["#buttonLabel_Authorize"]
+timeout_ms = 8000
+steps = [{ action = "click", sel = ["#buttonLabel_Authorize"] }]
+
+# AliceBlue sends the browser to the app's redirect URL with ?authCode=…&userId=…
+# (plus appcode). The backend hashes userId exactly as AliceBlue sent it.
+[callback]
+url_matches = "{tenant.callback_hosts}/add-broker-account/aliceblue"
+endpoint = "/api/sessions/aliceblue/callback"
+body = { auth_code = "{query.authCode}", user_id = "{query.userId}" }
+
+# "Invalid vendor name or vendor key" is ANT's toast for an unknown App Code
+# (seen live); "Account is not activated/Invalid credentials" is its answer to
+# a wrong User ID or password (seen live). "User blocked" is in the bundle.
+# Phrases are plain substrings of the whole page, so no bare "locked": the
+# CleverTap prompt's "ANT Expertise Unlocked!" would count as a failure.
+[failure]
+text_any = [
+  "Invalid vendor name or vendor key",
+  "Register for TOTP",
+  "Invalid",
+  "invalid",
+  "Incorrect",
+  "incorrect",
+  "User blocked",
+  "Account locked",
+  "account is locked",
+]

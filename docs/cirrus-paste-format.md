@@ -27,7 +27,7 @@ expired pastes.
 | `issued_to` | Cirrus user the copy was made for. AutoLogin shows it before adding accounts, so a copy someone else made is obvious. |
 | `iat` / `exp` | Unix seconds. Copies expire 15 minutes after `iat`; AutoLogin allows 5 minutes of clock difference. |
 | `accounts[].tenant` | Tenant id: `cirrus` or `pocketful` (backend `APP_TENANT`). Must match an id in AutoLogin's signed broker manifest. Never URLs. |
-| `accounts[].broker` | AutoLogin broker id (`zerodha`, `upstox`, `pocketful`, `motilal`, `fyers`, `tradejini`, …). |
+| `accounts[].broker` | AutoLogin broker id (`zerodha`, `upstox`, `pocketful`, `motilal`, `fyers`, `tradejini`, `aliceblue`, …). |
 | `accounts[].client_id` | Broker client / user id. |
 | other account fields | Only those listed below are kept; anything else is dropped and only its *name* is reported. |
 
@@ -41,6 +41,7 @@ expired pastes.
 | Motilal Oswal | `client_id`, `api_key` |
 | Fyers | `client_id` (Fyers ID), `api_key` (the user's Fyers App ID, e.g. `XB12345-100`) |
 | Tradejini | `client_id` (User ID), `api_key` (the user's Tradejini API key) |
+| AliceBlue | `client_id` (User ID), `api_key` (the App Code of the user's AliceBlue API app) |
 
 **Do not include** `api_secret`, passwords, PINs, TOTP secrets or access
 tokens. AutoLogin discards them even if present, but they should never reach
