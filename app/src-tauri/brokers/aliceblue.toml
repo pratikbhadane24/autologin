@@ -48,6 +48,13 @@ tz = "Asia/Kolkata"
 action = "goto"
 url = "https://ant.aliceblueonline.com/?appcode={url:api_key}"
 
+# ANT shows a CleverTap "ANT Expertise Unlocked!" push-notification prompt at
+# a random moment (seen live 2026-10-08); its overlay swallows clicks. A fresh
+# private session gets it every time, so keep it hidden for the whole login.
+[[steps]]
+action = "eval"
+js = "document.head.appendChild(Object.assign(document.createElement('style'), {{ textContent: '#wzrk_wrapper, .wzrk-overlay, .wzrk-alert {{ display: none !important; }}' }}))"
+
 # Ids from the live page: User ID and password share one form ...
 [[steps]]
 action = "fill"
@@ -93,6 +100,8 @@ body = { auth_code = "{query.authCode}", user_id = "{query.userId}" }
 # "Invalid vendor name or vendor key" is ANT's toast for an unknown App Code
 # (seen live); "Account is not activated/Invalid credentials" is its answer to
 # a wrong User ID or password (seen live). "User blocked" is in the bundle.
+# Phrases are plain substrings of the whole page, so no bare "locked": the
+# CleverTap prompt's "ANT Expertise Unlocked!" would count as a failure.
 [failure]
 text_any = [
   "Invalid vendor name or vendor key",
@@ -101,7 +110,7 @@ text_any = [
   "invalid",
   "Incorrect",
   "incorrect",
-  "blocked",
-  "Blocked",
-  "locked",
+  "User blocked",
+  "Account locked",
+  "account is locked",
 ]

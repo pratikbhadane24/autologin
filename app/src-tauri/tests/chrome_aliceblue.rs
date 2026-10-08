@@ -21,7 +21,8 @@ const ANT_WEB: &str = "https://ant.aliceblueonline.com";
 
 // Ids and texts as on the live page and in ANT's bundle (2026-10-08). The code
 // screen appears after a short delay (ANT checks the password first), accepts
-// digits only, submits on the sixth digit, and every submit is counted.
+// digits only, submits on the sixth digit, and every submit is counted. The
+// CleverTap push prompt shows up too.
 const LOGIN_PAGE: &str = r##"<!doctype html><html><head><style>.hide{display:none}</style></head><body>
 <form id="userAndPasswordForm" autocomplete="off">
   <label for="new_login_userId">User ID / Mobile Number / Email</label>
@@ -57,6 +58,12 @@ const LOGIN_PAGE: &str = r##"<!doctype html><html><head><style>.hide{display:non
       + '&appcode=' + appcode + '&password=' + encodeURIComponent($('#new_login_password').value)
       + '&totp=' + otp.value + '&submits=' + submits;
   };
+  // CleverTap's push prompt, as on the live page: it arrives a moment after
+  // load, and its full-page overlay takes every click.
+  setTimeout(() => document.body.insertAdjacentHTML('beforeend',
+    '<div id="wzrk_wrapper"><div class="wzrk-overlay" style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.3)"></div>'
+    + '<div class="wzrk-alert" style="position:fixed;top:0;right:0;z-index:10000"><div class="wzrk-alert-heading">ANT Expertise Unlocked!</div>'
+    + '<button id="wzrk-cancel">Not Interested</button><button id="wzrk-confirm">Interested</button></div></div>'), 150);
 </script></body></html>"##;
 
 fn bundle(server: &str) -> ManifestBundle {
