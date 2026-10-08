@@ -35,7 +35,7 @@ fn add(deps: &RunnerDeps, broker: &str, values: &[(&str, &str)]) -> i64 {
         broker_id: broker.into(),
         values: values.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<BTreeMap<_, _>>(),
     };
-    deps.with_accounts(|a| a.create(&input, Completeness::AllowMissingSecrets)).unwrap().id
+    deps.with_accounts(|a| a.create(&input, Completeness::AllowMissing)).unwrap().id
 }
 
 fn motilal(deps: &RunnerDeps) -> i64 {

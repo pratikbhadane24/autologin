@@ -135,6 +135,8 @@ export interface PastedAccount {
   fields: Record<string, string>;
   ignored: string[];
   coming_soon: boolean;
+  /** Already in AutoLogin: adding refreshes Cirrus's values, keeps secrets. */
+  already_added: boolean;
 }
 
 export interface PasteResult {
@@ -174,5 +176,6 @@ export type UpdateStatus =
 
 export interface BulkResult {
   added: Account[];
+  updated: Account[];
   errors: { index: number; error: CommandError }[];
 }

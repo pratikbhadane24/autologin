@@ -87,16 +87,16 @@ export function installMockBackend() {
         case "parse_paste":
           return {
             accounts: [
-              { tenant_id: "cirrus", broker_id: "pocketful", fields: { client_id: "PK00999" }, ignored: [], coming_soon: false },
-              { tenant_id: "cirrus", broker_id: "zerodha", fields: { client_id: "AB1234", api_key: "kite_key" }, ignored: ["api_secret"], coming_soon: false },
-              { tenant_id: "pocketful", broker_id: "pocketful", fields: { client_id: "PK00999" }, ignored: [], coming_soon: false },
-              { tenant_id: "cirrus", broker_id: "fyers", fields: { client_id: "XA00451" }, ignored: [], coming_soon: true },
+              { tenant_id: "cirrus", broker_id: "pocketful", fields: { client_id: "PK00999" }, ignored: [], coming_soon: false, already_added: false },
+              { tenant_id: "cirrus", broker_id: "zerodha", fields: { client_id: "AB1234", api_key: "kite_key" }, ignored: ["api_secret"], coming_soon: false, already_added: true },
+              { tenant_id: "pocketful", broker_id: "pocketful", fields: { client_id: "PK00999" }, ignored: [], coming_soon: false, already_added: false },
+              { tenant_id: "cirrus", broker_id: "fyers", fields: { client_id: "XA00451" }, ignored: [], coming_soon: true, already_added: false },
             ],
             problems: [],
             issued_to: "demo_user",
           };
         case "add_accounts":
-          return { added: [], errors: [] };
+          return { added: [], updated: [], errors: [] };
         case "recent_logs": return "2026-10-05T03:15:00Z  INFO starting run trigger=Scheduled count=6 headless=true\n2026-10-05T03:15:04Z  INFO login finished account=1 ok=true";
         case "acknowledge_privacy": settings = { ...settings, privacy_acknowledged: true }; return null;
         default: return null;

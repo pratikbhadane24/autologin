@@ -163,8 +163,8 @@ fn apply_one(accounts: &Accounts<'_>, bundle: &ManifestBundle, entry: &BackupAcc
     let key = AccountKey { tenant_id: entry.tenant_id.clone(), broker_id: broker.id.clone(), client_id: entry.client_id.trim().to_string() };
 
     let (account, created) = match accounts.find(&key)? {
-        Some(existing) => (accounts.update(existing.id, &input, Completeness::AllowMissingSecrets)?, false),
-        None => (accounts.create(&input, Completeness::AllowMissingSecrets)?, true),
+        Some(existing) => (accounts.update(existing.id, &input, Completeness::AllowMissing)?, false),
+        None => (accounts.create(&input, Completeness::AllowMissing)?, true),
     };
     let needs_setup = !super::validate::missing_fields(broker, &account.fields, &account.secret_keys).is_empty();
     Ok((created, needs_setup))

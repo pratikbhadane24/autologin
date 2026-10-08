@@ -159,6 +159,24 @@ impl<'a> Accounts<'a> {
         self.bundle.get(&input.broker_id).ok_or_else(|| AccountError::UnknownBroker(input.broker_id.clone()))
     }
 
+    /// Add a pasted account, or refresh it if it's already here: non-empty
+    /// incoming values (e.g. a new API key from Cirrus) replace the saved
+    /// ones, and saved secrets stay. Returns the account and whether it is new.
+    pub fn add_or_refresh(&self, input: &AccountInput) -> Result<(Account, bool), AccountError> {
+        let manifest = self.manifest(input)?;
+        let values = validate::normalize(&input.values);
+        let client_id = values.get(CLIENT_ID).cloned().unwrap_or_default();
+        let key = AccountKey { tenant_id: input.tenant_id.clone(), broker_id: manifest.id.clone(), client_id };
+        let Some(existing) = self.find(&key)? else {
+            return Ok((self.create(input, Completeness::AllowMissing)?, true));
+        };
+        let mut merged = existing.fields.clone();
+        merged.insert(CLIENT_ID.to_string(), existing.client_id.clone());
+        merged.extend(values.into_iter().filter(|(_, value)| !value.trim().is_empty()));
+        let refreshed = self.update(existing.id, &AccountInput { values: merged, ..input.clone() }, Completeness::AllowMissing)?;
+        Ok((refreshed, false))
+    }
+
     pub fn create(&self, input: &AccountInput, completeness: Completeness) -> Result<Account, AccountError> {
         let manifest = self.manifest(input)?;
         let values = validate::normalize(&input.values);

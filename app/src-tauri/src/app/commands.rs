@@ -19,6 +19,7 @@ use crate::paste::{self, PasteResult};
 use crate::runner::artifacts::FAILURES_DIR;
 use crate::runner::Trigger;
 use crate::store::accounts::{AccountError, AccountInput, Accounts};
+use crate::store::secrets::AccountKey;
 use crate::store::backup::{self, FileKind};
 use crate::store::transfer::{self, ImportReport};
 use crate::store::validate::{Completeness, FieldErrors};
@@ -98,28 +99,32 @@ pub struct BulkRowError {
 #[derive(Debug, Serialize)]
 pub struct BulkResult {
     pub added: Vec<AccountView>,
+    /// Accounts that were already here: Cirrus's values refreshed, secrets kept.
+    pub updated: Vec<AccountView>,
     pub errors: Vec<BulkRowError>,
 }
 
-/// Add several accounts at once (bulk paste from Cirrus). Rows whose secrets
-/// are left blank are still added and shown as "Needs setup".
+/// Add several accounts at once (bulk paste from Cirrus). Rows with values
+/// left blank are still added and shown as "Needs setup"; accounts already
+/// here are refreshed with Cirrus's values and keep their saved secrets.
 #[tauri::command]
 pub fn add_accounts(state: State<'_, AppState>, inputs: Vec<AccountInput>) -> CmdResult<BulkResult> {
     let bundle = state.bundle();
     let outcomes = with_accounts(&state, |accounts| {
         Ok(inputs
             .iter()
-            .map(|input| accounts.create(input, Completeness::AllowMissingSecrets))
+            .map(|input| accounts.add_or_refresh(input))
             .collect::<Vec<_>>())
     })?;
-    let mut result = BulkResult { added: Vec::new(), errors: Vec::new() };
+    let mut result = BulkResult { added: Vec::new(), updated: Vec::new(), errors: Vec::new() };
     for (index, outcome) in outcomes.into_iter().enumerate() {
         match outcome {
-            Ok(account) => result.added.push(views::account_view(account, &bundle)),
+            Ok((account, true)) => result.added.push(views::account_view(account, &bundle)),
+            Ok((account, false)) => result.updated.push(views::account_view(account, &bundle)),
             Err(error) => result.errors.push(BulkRowError { index, error: error.into() }),
         }
     }
-    tracing::info!(added = result.added.len(), failed = result.errors.len(), "bulk add");
+    tracing::info!(added = result.added.len(), updated = result.updated.len(), failed = result.errors.len(), "bulk add");
     Ok(result)
 }
 
@@ -139,7 +144,19 @@ pub fn delete_accounts(state: State<'_, AppState>, ids: Vec<i64>) -> CmdResult<u
 
 #[tauri::command]
 pub fn parse_paste(state: State<'_, AppState>, text: String) -> CmdResult<PasteResult> {
-    paste::parse(&text, &state.bundle()).map_err(|e| CommandError::msg(e.to_string()))
+    let mut result = paste::parse(&text, &state.bundle()).map_err(|e| CommandError::msg(e.to_string()))?;
+    with_accounts(&state, |accounts| {
+        for pasted in &mut result.accounts {
+            let key = AccountKey {
+                tenant_id: pasted.tenant_id.clone(),
+                broker_id: pasted.broker_id.clone(),
+                client_id: pasted.fields.get("client_id").cloned().unwrap_or_default(),
+            };
+            pasted.already_added = accounts.find(&key)?.is_some();
+        }
+        Ok(())
+    })?;
+    Ok(result)
 }
 
 // ---- runs ----

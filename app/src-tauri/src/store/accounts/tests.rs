@@ -144,3 +144,41 @@ fn login_values_reports_lost_secrets_clearly() {
     assert!(matches!(fx.accounts().login_values(account.id), Err(AccountError::SecretsMissing)));
     assert!(fx.accounts().get(account.id).unwrap().secret_keys.is_empty(), "now shows as needs setup");
 }
+
+#[test]
+fn add_or_refresh_updates_cirrus_values_and_keeps_saved_secrets() {
+    let fx = Fixture::new();
+    let original = fx.accounts().create(&zerodha("cirrus", "AB1"), Completeness::Strict).unwrap();
+
+    // Pasted again from Cirrus: a new API key, nothing typed for the secrets.
+    let pasted = AccountInput {
+        tenant_id: "cirrus".into(),
+        broker_id: "zerodha".into(),
+        values: [("client_id", "AB1"), ("api_key", "new_key"), ("password", "")]
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+    };
+    let (refreshed, created) = fx.accounts().add_or_refresh(&pasted).unwrap();
+
+    assert!(!created);
+    assert_eq!(refreshed.id, original.id);
+    assert_eq!(refreshed.fields["api_key"], "new_key");
+    let secrets = fx.secrets.load(&fx.conn, &refreshed.key()).unwrap();
+    assert_eq!(secrets["password"], "pw-123");
+    assert_eq!(secrets["totp_key"], "JBSWY3DPEHPK3PXP");
+    assert_eq!(fx.accounts().list().unwrap().len(), 1);
+}
+
+#[test]
+fn add_or_refresh_creates_new_accounts_even_with_values_missing() {
+    let fx = Fixture::new();
+    let only_client = AccountInput {
+        tenant_id: "pocketful".into(),
+        broker_id: "zerodha".into(),
+        values: [("client_id".to_string(), "AB1".to_string())].into(),
+    };
+    let (account, created) = fx.accounts().add_or_refresh(&only_client).unwrap();
+    assert!(created);
+    assert_eq!(account.tenant_id, "pocketful");
+}

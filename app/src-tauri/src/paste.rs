@@ -78,6 +78,10 @@ pub struct PastedAccount {
     /// Names of keys that were present but not accepted.
     pub ignored: Vec<String>,
     pub coming_soon: bool,
+    /// Already in AutoLogin (same workspace, broker and client ID); adding
+    /// it again refreshes Cirrus's values and keeps the saved secrets. Set by
+    /// the command, which can see the accounts.
+    pub already_added: bool,
 }
 
 /// An entry that could not be used, with a user-facing reason.
@@ -250,6 +254,7 @@ fn parse_entry(entry: &Value, bundle: &ManifestBundle) -> Result<Result<PastedAc
         fields,
         ignored,
         coming_soon: manifest.availability == Availability::ComingSoon,
+        already_added: false,
     }))
 }
 
