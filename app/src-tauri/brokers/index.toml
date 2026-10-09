@@ -2,7 +2,7 @@
 # Bump manifest_version whenever any broker file changes; the app keeps the
 # newest valid manifest it has seen (bundled, cached or remote).
 schema_version = 1
-manifest_version = 3
+manifest_version = 4
 
 # Cirrus deployments, referenced as {tenant.<key>}. Every tenant defines the
 # same keys. Broker redirects go to cirrus_app (app.cirrus.trade), which is
@@ -22,7 +22,26 @@ pocketful_app_id = "dZCQSOGrV1"
 [tenants.pocketful]
 name = "Pocketful"
 cirrus_app = "https://cirrus.pocketful.in"
-# VERIFY: Pocketful tenant's broker-auth API host and Pocketful app id.
-broker_auth_api = "https://broker-auth-api.cirrus.trade"
+# Whitelabel tenants' broker-auth backends are private: reach them through
+# the tenant site's server-side passthrough (app-cirrus
+# /api/proxy/broker-auth/[...path]), which forwards the path unchanged.
+broker_auth_api = "https://cirrus.pocketful.in/api/proxy/broker-auth"
 callback_hosts = "^https://cirrus\\.pocketful\\.in"
 pocketful_app_id = "N6DKVVOmCe"
+
+[tenants.algoz]
+name = "AlgoZ"
+cirrus_app = "https://algoz.trade"
+broker_auth_api = "https://algoz.trade/api/proxy/broker-auth"
+callback_hosts = "^https://(www\\.)?algoz\\.trade"
+# VERIFY: AlgoZ backend's POCKETFUL_APP_ID (Pocketful logins fail until set).
+pocketful_app_id = ""
+
+# Not public yet (2026-10-09): logins fail until the site is live.
+[tenants.5paisa]
+name = "5paisa"
+cirrus_app = "https://cirrus.5paisa.com"
+broker_auth_api = "https://cirrus.5paisa.com/api/proxy/broker-auth"
+callback_hosts = "^https://cirrus\\.5paisa\\.com"
+# VERIFY: 5paisa tenant backend's POCKETFUL_APP_ID (Pocketful logins fail until set).
+pocketful_app_id = ""
