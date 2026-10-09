@@ -188,6 +188,21 @@ mod tests {
         }
     }
 
+    /// Only Cirrus's broker-auth API is public; every other tenant's login
+    /// must go through its own site, never another tenant's backend.
+    #[test]
+    fn whitelabel_tenants_reach_their_backend_through_their_own_site() {
+        let bundle = ManifestBundle::bundled().unwrap();
+        for (id, tenant) in &bundle.index.tenants {
+            let api = &tenant["broker_auth_api"];
+            if id == "cirrus" {
+                assert_eq!(api, "https://broker-auth-api.cirrus.trade");
+            } else {
+                assert_eq!(api, &format!("{}/api/proxy/broker-auth", tenant["cirrus_app"]), "tenant {id}");
+            }
+        }
+    }
+
     #[test]
     fn resolves_aliases_case_and_punctuation_insensitively() {
         let bundle = ManifestBundle::bundled().unwrap();
