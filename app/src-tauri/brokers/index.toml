@@ -34,8 +34,7 @@ name = "AlgoZ"
 cirrus_app = "https://algoz.trade"
 broker_auth_api = "https://algoz.trade/api/proxy/broker-auth"
 callback_hosts = "^https://(www\\.)?algoz\\.trade"
-# VERIFY: AlgoZ backend's POCKETFUL_APP_ID (Pocketful logins fail until set).
-pocketful_app_id = ""
+pocketful_app_id = "icXukcnx1T"
 
 # Not public yet (2026-10-09): logins fail until the site is live.
 [tenants.5paisa]
