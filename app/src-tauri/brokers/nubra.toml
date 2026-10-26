@@ -1,0 +1,41 @@
+id = "nubra"
+name = "Nubra"
+kind = "http"
+flow = "cirrus"
+aliases = ["nubra"]
+
+[[fields]]
+key = "client_id"
+label = "Nubra Client Code"
+from_cirrus = true
+pattern = "^[A-Za-z0-9._-]{1,64}$"
+
+[[fields]]
+key = "mobile_number"
+label = "Mobile number"
+secret = true
+pattern = "^[6-9][0-9]{9}$"
+placeholder = "10-digit number registered with Nubra"
+
+[[fields]]
+key = "totp_key"
+label = "TOTP Secret"
+secret = true
+totp = true
+help = "The text key Nubra shows under the QR code when you turn on TOTP."
+
+[[fields]]
+key = "mpin"
+label = "MPIN"
+secret = true
+pattern = "^[0-9]{4,6}$"
+
+[session]
+reset = "05:00"
+tz = "Asia/Kolkata"
+
+# Nubra has no login page: Cirrus logs in with these values (the same request
+# as the Manager's Login form). Log in to this account on Cirrus once first.
+[callback]
+endpoint = "/api/sessions/nubra/refresh"
+body = { client_id = "{client_id}", mobile_number = "{mobile_number}", totp = "{totp}", mpin = "{mpin}" }

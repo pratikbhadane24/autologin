@@ -451,6 +451,7 @@ impl BrokerManifest {
 pub fn http_flow_outputs(flow: &str) -> Option<&'static [&'static str]> {
     match flow {
         "motilal" => Some(&["auth_token"]),
+        "cirrus" => Some(&[]),
         _ => None,
     }
 }

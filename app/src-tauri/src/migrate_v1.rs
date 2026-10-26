@@ -204,7 +204,7 @@ mod tests {
     const V1_ACCOUNTS: &str = r#"{
       "zerodha": [{"client_id": "AB1", "api_key": "kite", "password": "pw", "totp_key": "JBSWY3DPEHPK3PXP",
                    "api_secret": "", "added_on": "13-07-2026 09:29", "last_login": "", "status": "Logged In"}],
-      "kotakneo": [{"client_id": "K1", "mpin": "1234", "totp_key": "JBSWY3DPEHPK3PXP", "mobile_number": "9999999999"}],
+      "sharekhan": [{"client_id": "S1", "password": "pw3"}],
       "pocketful": [{"client_id": "P1", "password": "pw2", "mpin": ""}],
       "nuvama": []
     }"#;
@@ -226,7 +226,7 @@ mod tests {
         let outcome = run(dir.path(), &conn, &accounts, &bundle).unwrap().unwrap();
 
         assert_eq!(outcome.report.added, 2);
-        assert_eq!(outcome.waiting_brokers, vec!["Kotak Neo".to_string()]);
+        assert_eq!(outcome.waiting_brokers, vec!["Sharekhan".to_string()]);
         assert_eq!(outcome.background_login, Some(true));
         assert!(!dir.path().join(ACCOUNTS_FILE).exists());
         assert!(dir.path().join(BACKUP_FILE).exists(), "v1 data must never be deleted");
@@ -248,13 +248,13 @@ mod tests {
         let bundle = ManifestBundle::bundled().unwrap();
         run(dir.path(), &conn, &Accounts::new(&conn, &secrets, &bundle), &bundle).unwrap();
 
-        // Simulate a broker update that adds Kotak Neo.
+        // Simulate a broker update that adds Sharekhan.
         let mut newer = bundle.clone();
-        let mut kotak = newer.get("pocketful").unwrap().clone();
-        kotak.id = "kotakneo".into();
-        kotak.name = "Kotak Neo".into();
-        kotak.aliases = vec!["kotakneo".into()];
-        newer.brokers.insert("kotakneo".into(), kotak);
+        let mut sharekhan = newer.get("pocketful").unwrap().clone();
+        sharekhan.id = "sharekhan".into();
+        sharekhan.name = "Sharekhan".into();
+        sharekhan.aliases = vec!["sharekhan".into()];
+        newer.brokers.insert("sharekhan".into(), sharekhan);
 
         let accounts = Accounts::new(&conn, &secrets, &newer);
         let outcome = run(dir.path(), &conn, &accounts, &newer).unwrap().unwrap();
