@@ -9,6 +9,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "2.1.0",
+    highlights: [
+      "Angel One, Nubra and Kotak Neo accounts log in too.",
+      "Angel One uses your own SmartAPI app: send the account from Cirrus to bring its API Key.",
+    ],
+  },
+  {
     version: "2.0.0",
     highlights: [
       "Rebuilt from scratch: logins are faster and use less memory.",
