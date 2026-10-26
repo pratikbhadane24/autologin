@@ -48,6 +48,8 @@ pub async fn run(
 ) -> Result<HashMap<String, String>, FlowError> {
     match flow {
         "motilal" => motilal::run(ctx, client).await,
+        // Cirrus logs in to the broker itself from the callback body.
+        "cirrus" => Ok(HashMap::new()),
         other => Err(FlowError::UnknownFlow(other.to_string())),
     }
 }

@@ -1,0 +1,41 @@
+id = "kotakneo"
+name = "Kotak Neo"
+kind = "http"
+flow = "cirrus"
+aliases = ["kotakneo", "kotak neo", "kotak"]
+
+[[fields]]
+key = "client_id"
+label = "Client ID (UCC)"
+from_cirrus = true
+pattern = "^[A-Za-z0-9._-]{1,64}$"
+
+[[fields]]
+key = "mobile_number"
+label = "Mobile number"
+secret = true
+pattern = "^[6-9][0-9]{9}$"
+placeholder = "10-digit number registered with Kotak Neo"
+
+[[fields]]
+key = "totp_key"
+label = "TOTP Secret"
+secret = true
+totp = true
+help = "The text key shown under the QR code in Kotak Neo Trade API → TOTP Registration."
+
+[[fields]]
+key = "mpin"
+label = "MPIN"
+secret = true
+pattern = "^[0-9]{4,6}$"
+
+[session]
+reset = "05:00"
+tz = "Asia/Kolkata"
+
+# Kotak Neo has no login page: Cirrus logs in with these values and the
+# account's saved Trade API token, through its whitelisted static IP.
+[callback]
+endpoint = "/api/sessions/kotak-neo/refresh"
+body = { client_id = "{client_id}", mobile_number = "{mobile_number}", totp = "{totp}", mpin = "{mpin}" }

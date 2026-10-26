@@ -1,0 +1,66 @@
+id = "angel_one"
+name = "Angel One"
+kind = "browser"
+aliases = ["angel", "angelone", "angel one"]
+
+[[fields]]
+key = "client_id"
+label = "Client ID"
+from_cirrus = true
+
+[[fields]]
+key = "api_key"
+label = "API Key"
+from_cirrus = true
+help = "From your own SmartAPI app (smartapi.angelone.in). Set the app's redirect URL to https://app.cirrus.trade/add-broker-account/angel-one."
+
+[[fields]]
+key = "mpin"
+label = "MPIN"
+secret = true
+pattern = "^[0-9]{4,6}$"
+
+[[fields]]
+key = "totp_key"
+label = "TOTP Secret"
+secret = true
+totp = true
+
+[session]
+reset = "05:00"
+tz = "Asia/Kolkata"
+
+# Selectors follow AutoLogin 1.x's Angel One flow.
+[[steps]]
+action = "goto"
+url = "https://smartapi.angelone.in/publisher-login?api_key={url:api_key}&redirect_url={url:tenant.cirrus_app}%2Fadd-broker-account%2Fangel-one&state={url:client_id}"
+
+[[steps]]
+action = "click"
+sel = ["#login-by-totp"]
+timeout_ms = 20000
+
+[[steps]]
+action = "fill"
+sel = ["#tot-user-id-block input"]
+value = "{client_id}"
+
+[[steps]]
+action = "fill"
+sel = ["#tot-pin"]
+value = "{mpin}"
+
+[[steps]]
+action = "fill"
+sel = ["#tot-totp"]
+value = "{totp}"
+
+[[steps]]
+action = "click"
+sel = ["#totp-login div", "#totp-login"]
+
+# SmartAPI sends the browser to the app's redirect URL with the session tokens.
+[callback]
+url_matches = "{tenant.callback_hosts}/add-broker-account/angel-one"
+endpoint = "/api/sessions/angelone/add-account"
+body = { client_id = "{client_id}", auth_token = "{query.auth_token}", feed_token = "{query.feed_token}", refresh_token = "{query.refresh_token}" }
