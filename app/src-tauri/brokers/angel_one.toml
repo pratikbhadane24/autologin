@@ -33,7 +33,7 @@ tz = "Asia/Kolkata"
 # Selectors follow AutoLogin 1.x's Angel One flow.
 [[steps]]
 action = "goto"
-url = "https://smartapi.angelone.in/publisher-login?api_key={url:api_key}&state={url:client_id}"
+url = "https://smartapi.angelone.in/publisher-login?api_key={url:api_key}&redirect_url={url:tenant.cirrus_app}%2Fadd-broker-account%2Fangel-one&state={url:client_id}"
 
 [[steps]]
 action = "click"
