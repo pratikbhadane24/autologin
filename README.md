@@ -21,6 +21,7 @@ day. AutoLogin does not ask you to sign in to Cirrus.
 | Pocketful, Zerodha, Upstox, Motilal Oswal, Dhan, 5Paisa, Tradejini, AliceBlue (with your own API app) | v2.0 |
 | Fyers | Not yet: its login page requires a human check, so it can't run unattended |
 | Angel One (with your own SmartAPI app), Nubra, Kotak Neo | v2.1 |
+| ProfitMart (with your own ProfitMax API app) | Broker update |
 | Nuvama, Sharekhan, Jainam Lite, Firstock | Coming later |
 | Groww | Planned |
 
