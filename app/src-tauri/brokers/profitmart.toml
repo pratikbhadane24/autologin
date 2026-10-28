@@ -1,0 +1,64 @@
+id = "profitmart"
+name = "ProfitMart"
+kind = "browser"
+aliases = ["profitmart", "profit mart"]
+
+[[fields]]
+key = "client_id"
+label = "Client ID"
+from_cirrus = true
+
+[[fields]]
+key = "api_key"
+label = "API Key"
+from_cirrus = true
+help = "From the ProfitMax API key page: your Client ID followed by _U. Set its Redirect URL to https://app.cirrus.trade/add-broker-account/profitmart."
+
+[[fields]]
+key = "password"
+label = "Password"
+secret = true
+
+[[fields]]
+key = "totp_key"
+label = "TOTP Secret"
+secret = true
+totp = true
+
+[session]
+reset = "05:00"
+tz = "Asia/Kolkata"
+
+# ProfitMax OAuth sign-in: user ID, password and TOTP on one screen.
+[[steps]]
+action = "goto"
+url = "https://profitmax.profitmart.in/OAuthlogin/investor-entry-level/login?api_key={url:api_key}"
+
+[[steps]]
+action = "type"
+sel = ["#lgnusrid"]
+value = "{client_id}"
+timeout_ms = 20000
+
+[[steps]]
+action = "type"
+sel = ["#lgnpwd"]
+value = "{password}"
+
+[[steps]]
+action = "type"
+sel = ["#lgnotp"]
+value = "{totp}"
+
+[[steps]]
+action = "click"
+sel = ["button.lgnBtnClss", "text=LOGIN"]
+
+# ProfitMart sends the browser to the API app's redirect URL with ?code=.
+[callback]
+url_matches = "{tenant.callback_hosts}/add-broker-account/profitmart"
+endpoint = "/api/sessions/profitmart/callback"
+body = { client_id = "{client_id}", code = "{query.code}" }
+
+[failure]
+text_any = ["Invalid", "incorrect", "blocked"]

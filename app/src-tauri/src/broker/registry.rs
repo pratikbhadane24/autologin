@@ -178,7 +178,7 @@ pub fn normalize_alias(name: &str) -> String {
 mod tests {
     use super::*;
 
-    const TIER_ONE: &[&str] = &["aliceblue", "angel_one", "dhan", "fivepaisa", "fyers", "kotakneo", "motilal", "nubra", "pocketful", "tradejini", "upstox", "zerodha"];
+    const TIER_ONE: &[&str] = &["aliceblue", "angel_one", "dhan", "fivepaisa", "fyers", "kotakneo", "motilal", "nubra", "pocketful", "profitmart", "tradejini", "upstox", "zerodha"];
 
     #[test]
     fn bundled_manifests_all_validate() {
