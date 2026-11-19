@@ -9,6 +9,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "2.1.1",
+    highlights: [
+      "Import a Cirrus account copy from a saved JSON or text file on your phone.",
+      "Opening AutoLogin from Cirrus is more reliable in mobile browsers and installed PWAs.",
+    ],
+  },
+  {
     version: "2.1.0",
     highlights: [
       "Angel One, Nubra and Kotak Neo accounts log in too.",

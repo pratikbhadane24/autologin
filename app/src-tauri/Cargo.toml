@@ -1,6 +1,6 @@
 [package]
 name = "autologin"
-version = "2.1.0"
+version = "2.1.1"
 description = "AutoLogin - automated broker logins for Cirrus"
 authors = ["Pratik Bhadane"]
 edition = "2021"
