@@ -1,16 +1,27 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { useState } from "react";
 import { api } from "../lib/api";
-import type { CommandError, FileKind, ImportReport } from "../lib/types";
+import { IS_MOBILE } from "../lib/platform";
+import type { CommandError, FileKind, ImportReport, PasteResult } from "../lib/types";
 import { Modal } from "./Modal";
 import { SecretInput } from "./SecretInput";
 
 interface Props {
   onClose: () => void;
   onImported: () => void;
+  onCirrusPaste: (paste: PasteResult) => void;
 }
 
-export function ImportDialog({ onClose, onImported }: Props) {
+function isCirrusEnvelope(text: string): boolean {
+  try {
+    const value = JSON.parse(text) as Record<string, unknown>;
+    return typeof value === "object" && value !== null && typeof value.payload === "string" && typeof value.sig === "string";
+  } catch {
+    return false;
+  }
+}
+
+export function ImportDialog({ onClose, onImported, onCirrusPaste }: Props) {
   const [path, setPath] = useState<string | null>(null);
   const [kind, setKind] = useState<FileKind | null>(null);
   const [password, setPassword] = useState("");
@@ -21,10 +32,17 @@ export function ImportDialog({ onClose, onImported }: Props) {
     setError(null);
     const picked = await open({
       multiple: false,
-      filters: [{ name: "AutoLogin backup or CSV", extensions: ["autologin", "json", "csv"] }],
+      // Android's document picker rejects custom extension filters on some
+      // versions. The Rust detector still validates the contents safely.
+      ...(IS_MOBILE ? {} : { filters: [{ name: "AutoLogin backup or Cirrus copy", extensions: ["autologin", "json", "csv", "txt"] }] }),
     });
     if (typeof picked !== "string") return;
     try {
+      const text = await api.readImportText(picked);
+      if (isCirrusEnvelope(text)) {
+        onCirrusPaste(await api.parsePaste(text));
+        return;
+      }
       setKind(await api.inspectImport(picked));
       setPath(picked);
     } catch (e) {
@@ -82,8 +100,8 @@ export function ImportDialog({ onClose, onImported }: Props) {
       }
     >
       <p className="muted">
-        Use a backup exported from AutoLogin, or a CSV file (including CSV exports from AutoLogin 1.x). Accounts that already
-        exist are updated, not duplicated.
+        Use a backup exported from AutoLogin, a CSV file, or a JSON/text file copied from Cirrus. Cirrus account copies are
+        checked and shown for confirmation before anything is added. Accounts that already exist are updated, not duplicated.
       </p>
       <div>
         <button className="button" onClick={chooseFile}>

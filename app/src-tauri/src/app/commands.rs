@@ -298,6 +298,13 @@ fn read_import(path: &Path) -> CmdResult<String> {
     std::fs::read_to_string(path).map_err(|e| CommandError::msg(format!("Could not read the file: {e}")))
 }
 
+/// Read a selected text file so the UI can route a saved Cirrus account copy
+/// through the same signed confirmation flow as clipboard paste.
+#[tauri::command]
+pub fn read_import_text(path: PathBuf) -> CmdResult<String> {
+    read_import(&path)
+}
+
 #[tauri::command]
 pub fn inspect_import(path: PathBuf) -> CmdResult<FileKind> {
     backup::detect(&read_import(&path)?).map_err(|e| CommandError::msg(e.to_string()))
