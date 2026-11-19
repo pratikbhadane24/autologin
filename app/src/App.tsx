@@ -233,6 +233,7 @@ export default function App() {
             onAccountsChanged={refresh}
             onShowPrivacy={() => setPrivacyOpen(true)}
             onToast={setToast}
+            catalog={catalog}
           />
         )}
         {tab === "activity" && <LogsView running={run.running} />}

@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { BulkAddDialog } from "../components/BulkAddDialog";
 import { ExportDialog } from "../components/ExportDialog";
 import { ImportDialog } from "../components/ImportDialog";
 import { PhoneScheduleSetup } from "../components/PhoneScheduleSetup";
 import { api } from "../lib/api";
 import { DEVICE, IS_MOBILE } from "../lib/platform";
-import type { AppInfo, AppSettings, CommandError, SettingsView as View, Weekday } from "../lib/types";
+import type { AppInfo, AppSettings, Catalog, CommandError, PasteResult, SettingsView as View, Weekday } from "../lib/types";
 import "./SettingsView.css";
 
 const DAYS: Weekday[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -18,13 +19,15 @@ interface Props {
   onAccountsChanged: () => void;
   onShowPrivacy: () => void;
   onToast: (message: string) => void;
+  catalog: Catalog;
 }
 
-export function SettingsView({ view, info, onSaved, onAccountsChanged, onShowPrivacy, onToast }: Props) {
+export function SettingsView({ view, info, onSaved, onAccountsChanged, onShowPrivacy, onToast, catalog }: Props) {
   const { settings } = view;
   const [dialog, setDialog] = useState<"export" | "import" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [cirrusPaste, setCirrusPaste] = useState<PasteResult | null>(null);
   const time = settings.schedule.time.slice(0, 5);
 
   async function checkUpdates() {
@@ -200,7 +203,10 @@ export function SettingsView({ view, info, onSaved, onAccountsChanged, onShowPri
 
       <section className="settings-section">
         <h2>Move to another {DEVICE}</h2>
-        <p className="muted">Export your accounts here, then import the file in AutoLogin on the new {DEVICE}.</p>
+        <p className="muted">
+          Export a backup here, or save Cirrus's “Copy for AutoLogin” text and import it on the new {DEVICE}. Cirrus copies
+          open in the account confirmation screen; they are not treated as backups.
+        </p>
         <div className="button-row">
           <button className="button" onClick={() => setDialog("export")}>
             Export accounts
@@ -249,7 +255,28 @@ export function SettingsView({ view, info, onSaved, onAccountsChanged, onShowPri
       </section>
 
       {dialog === "export" && <ExportDialog onClose={() => setDialog(null)} onDone={onToast} />}
-      {dialog === "import" && <ImportDialog onClose={() => setDialog(null)} onImported={onAccountsChanged} />}
+      {dialog === "import" && (
+        <ImportDialog
+          onClose={() => setDialog(null)}
+          onImported={onAccountsChanged}
+          onCirrusPaste={(paste) => {
+            setDialog(null);
+            setCirrusPaste(paste);
+          }}
+        />
+      )}
+      {cirrusPaste && (
+        <BulkAddDialog
+          catalog={catalog}
+          paste={cirrusPaste}
+          onClose={() => setCirrusPaste(null)}
+          onDone={(message) => {
+            setCirrusPaste(null);
+            onAccountsChanged();
+            onToast(message);
+          }}
+        />
+      )}
     </div>
   );
 }

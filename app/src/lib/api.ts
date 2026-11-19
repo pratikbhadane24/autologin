@@ -57,6 +57,7 @@ export const api = {
   markWhatsNewSeen: () => call<void>("mark_whats_new_seen"),
   exportAccounts: (path: string, format: ExportFormat, password?: string) =>
     call<number>("export_accounts", { path, format, password: password ?? null }),
+  readImportText: (path: string) => call<string>("read_import_text", { path }),
   inspectImport: (path: string) => call<FileKind>("inspect_import", { path }),
   importAccounts: (path: string, password?: string) =>
     call<ImportReport>("import_accounts", { path, password: password ?? null }),

@@ -65,6 +65,7 @@ pub fn run() {
             commands::acknowledge_privacy,
             commands::mark_whats_new_seen,
             commands::export_accounts,
+            commands::read_import_text,
             commands::inspect_import,
             commands::import_accounts,
             commands::take_migration_outcome,
