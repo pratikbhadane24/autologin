@@ -1,0 +1,76 @@
+id = "mstock"
+name = "m.Stock"
+kind = "browser"
+aliases = ["mstock", "m.stock", "m stock", "mirae", "mirae asset"]
+
+# NEEDS A LIVE CHECK: selectors come from the partner login page
+# (api.mstock.trade/login, main.BiDvepJt.js, 2026-11-25). TOTP must be
+# enabled on the mStock account; without it mStock sends an SMS/email OTP
+# that AutoLogin can't read.
+# Cirrus only: the platform key and redirect URL are Cirrus' mStock partner
+# registration.
+
+[[fields]]
+key = "client_id"
+label = "Client Code"
+from_cirrus = true
+
+[[fields]]
+key = "password"
+label = "Password"
+secret = true
+
+[[fields]]
+key = "totp_key"
+label = "TOTP Secret"
+secret = true
+totp = true
+help = "Turn on TOTP in the mStock app first; use the text key shown under the QR code."
+
+[session]
+reset = "05:00"
+tz = "Asia/Kolkata"
+
+[[steps]]
+action = "goto"
+url = "https://api.mstock.trade/login/?platform_key=6DEELLv1AgYEsS33BAeQIezcYSwXwjs3OY9rBFX9h48=&redirect_url=https://cirrus.trade/add-broker-account/mstock"
+
+[[steps]]
+action = "type"
+sel = ["#username"]
+value = "{client_id}"
+timeout_ms = 20000
+
+[[steps]]
+action = "type"
+sel = ["#password"]
+value = "{password}"
+
+# The page checks the box's state, not a click event.
+[[steps]]
+action = "eval"
+js = "document.getElementById('chkBoxInp').checked = true"
+
+[[steps]]
+action = "click"
+sel = ["#loginFormID"]
+
+[[steps]]
+action = "fill_split"
+sel = [".input_2"]
+value = "{totp}"
+timeout_ms = 20000
+
+[[steps]]
+action = "click"
+sel = ["#otpSubmit__btn"]
+
+# mStock redirects with ?Auth=&ApiKey=&UserDetails= (UserDetails is
+# encrypted; broker-auth decrypts it).
+[callback]
+url_matches = "{tenant.callback_hosts}/add-broker-account/mstock"
+endpoint = "/api/sessions/mstock/callback"
+body = { auth = "{query.Auth}", api_key = "{query.ApiKey}", user_details = "{query.UserDetails}" }
+
+[failure]
+text_any = ["Invalid", "Restricted", "expired", "try after"]

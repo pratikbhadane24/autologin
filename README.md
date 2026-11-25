@@ -22,6 +22,7 @@ day. AutoLogin does not ask you to sign in to Cirrus.
 | Fyers | Not yet: its login page requires a human check, so it can't run unattended |
 | Angel One (with your own SmartAPI app), Nubra, Kotak Neo | v2.1 |
 | ProfitMart (with your own ProfitMax API app) | Broker update |
+| Shoonya (with your own Shoonya API app), m.Stock (TOTP on) | Broker update |
 | Nuvama, Sharekhan, Jainam Lite, Firstock | Coming later |
 | Groww | Planned |
 

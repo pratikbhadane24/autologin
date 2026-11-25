@@ -1,0 +1,66 @@
+id = "shoonya"
+name = "Shoonya"
+kind = "browser"
+aliases = ["shoonya", "finvasia"]
+
+# NEEDS A LIVE CHECK: Shoonya's OAuth login is the same Noren web app as
+# ProfitMart's (api.shoonya.com/OAuthlogin, same bundle layout, 2026-11-25),
+# so the form selectors below are ProfitMart's.
+
+[[fields]]
+key = "client_id"
+label = "Client ID"
+from_cirrus = true
+
+[[fields]]
+key = "api_key"
+label = "API Key"
+from_cirrus = true
+help = "From the Shoonya API key page: your Client ID followed by _U. Set its Redirect URL to https://app.cirrus.trade/add-broker-account/shoonya."
+
+[[fields]]
+key = "password"
+label = "Password"
+secret = true
+
+[[fields]]
+key = "totp_key"
+label = "TOTP Secret"
+secret = true
+totp = true
+
+[session]
+reset = "05:00"
+tz = "Asia/Kolkata"
+
+[[steps]]
+action = "goto"
+url = "https://api.shoonya.com/OAuthlogin/authorize/oauth?client_id={url:api_key}"
+
+[[steps]]
+action = "type"
+sel = ["#lgnusrid"]
+value = "{client_id}"
+timeout_ms = 20000
+
+[[steps]]
+action = "type"
+sel = ["#lgnpwd"]
+value = "{password}"
+
+[[steps]]
+action = "type"
+sel = ["#lgnotp"]
+value = "{totp}"
+
+[[steps]]
+action = "click"
+sel = ["button.lgnBtnClss", "text=LOGIN"]
+
+[callback]
+url_matches = "{tenant.callback_hosts}/add-broker-account/shoonya"
+endpoint = "/api/sessions/shoonya/callback"
+body = { client_id = "{client_id}", code = "{query.code}" }
+
+[failure]
+text_any = ["Invalid", "incorrect", "blocked", "Access Restricted"]
